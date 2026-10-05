@@ -37,7 +37,7 @@ create policy journal_owner_update on public.user_journals for update to authent
 create function public.guard_journal_write() returns trigger
 language plpgsql security invoker set search_path = '' as $$
 declare
-  expected text := current_setting('shiguang.expected_version', true);
+  expected text := current_setting('hawtend.expected_version', true);
 begin
   if expected is null or expected = '' then
     raise exception 'Write through save_journal.' using errcode = '42501';
@@ -81,7 +81,7 @@ begin
       return query select 'conflict'::text, 0, null::jsonb, null::timestamptz;
       return;
     end if;
-    perform set_config('shiguang.expected_version', '0', true);
+    perform set_config('hawtend.expected_version', '0', true);
     insert into public.user_journals (user_id, journal, last_request_id)
       values (owner_id, p_journal, p_request_id) on conflict (user_id) do nothing;
     -- A concurrent first upload may have inserted while this transaction waited.
@@ -100,7 +100,7 @@ begin
     return;
   end if;
 
-  perform set_config('shiguang.expected_version', p_expected_version::text, true);
+  perform set_config('hawtend.expected_version', p_expected_version::text, true);
   update public.user_journals j set journal = p_journal, last_request_id = p_request_id
     where j.user_id = owner_id and j.version = p_expected_version returning j.* into current_row;
   return query select 'saved'::text, current_row.version, current_row.journal, current_row.updated_at;

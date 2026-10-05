@@ -50,7 +50,7 @@ begin
     update public.user_journals set version = 99;
     raise exception 'Client can change server revision';
   exception when insufficient_privilege then null; end;
-  perform set_config('shiguang.expected_version', '', true);
+  perform set_config('hawtend.expected_version', '', true);
   begin
     update public.user_journals set journal = original;
     raise exception 'Direct write bypassed compare-and-save';
@@ -70,7 +70,7 @@ begin
   update public.user_journals set journal = payload where user_id = 'd296293f-8664-42fa-a464-000000000001';
   get diagnostics affected = row_count;
   if affected <> 0 then raise exception 'Another user can update the first owner'; end if;
-  perform set_config('shiguang.expected_version', '0', true);
+  perform set_config('hawtend.expected_version', '0', true);
   begin
     insert into public.user_journals (user_id, journal, last_request_id)
       values ('d296293f-8664-42fa-a464-000000000001', payload, '61000500-0000-4000-8000-000000000004');

@@ -1,4 +1,9 @@
 import type { CSSProperties } from 'react'
+import hawtendMark from './assets/hawtend-mark-128.png'
+
+export function BrandMark({ size = 40 }: { size?: number }) {
+  return <img className="brand-mark" src={hawtendMark} width={size} height={size} alt="" aria-hidden="true" draggable={false} />
+}
 
 export function Icon({ name, size = 20, style, className }: { name: string; size?: number; style?: CSSProperties; className?: string }) {
   const paths: Record<string, React.ReactNode> = {

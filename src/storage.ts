@@ -1,5 +1,6 @@
 import type { Journal } from './model'
 
+// Keep the original database ID so the HawTend rename preserves existing local journals.
 const DB = 'shiguang-prototype-v1'
 const STORE = 'journal'
 function open(): Promise<IDBDatabase> {

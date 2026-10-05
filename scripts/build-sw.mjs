@@ -1,14 +1,16 @@
 import { readdir, readFile, writeFile } from 'node:fs/promises'
 import { createHash } from 'node:crypto'
 const assets = (await readdir('dist/assets')).map(name => `/assets/${name}`)
-const version = createHash('sha256').update(await readFile('dist/index.html')).digest('hex').slice(0, 12)
-const files = ['/', '/index.html', '/manifest.webmanifest', '/icon.svg', '/icon-192.png', '/icon-512.png', ...assets]
+const files = ['/', '/index.html', '/manifest.webmanifest', '/hawtend-favicon-32.png', '/hawtend-apple-touch-180.png', '/hawtend-icon-192.png', '/hawtend-icon-512.png', '/hawtend-maskable-512.png', ...assets]
+const hash = createHash('sha256')
+for (const file of files.filter(file => file !== '/')) hash.update(file).update(await readFile(`dist${file}`))
+const version = hash.digest('hex').slice(0, 12)
 await writeFile('dist/sw.js', `
-const CACHE = 'shiguang-${version}';
+const CACHE = 'hawtend-${version}';
 const FILES = ${JSON.stringify(files)};
 self.addEventListener('install', event => event.waitUntil(caches.open(CACHE).then(cache => cache.addAll(FILES))));
 self.addEventListener('activate', event => event.waitUntil(Promise.all([
-  caches.keys().then(keys => Promise.all(keys.filter(key => key.startsWith('shiguang-') && key !== CACHE).map(key => caches.delete(key)))),
+  caches.keys().then(keys => Promise.all(keys.filter(key => (key.startsWith('hawtend-') || key.startsWith('shiguang-')) && key !== CACHE).map(key => caches.delete(key)))),
   self.clients.claim()
 ])));
 self.addEventListener('fetch', event => {

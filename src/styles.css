@@ -32,8 +32,9 @@ input, textarea, select { max-width: 100%; }
 svg { vertical-align: middle; }
 .app-shell { min-height: 100vh; }
 .sidebar { width: 232px; height: 100dvh; position: fixed; inset: 0 auto 0 0; padding: 39px 23px 20px; background: var(--sidebar); border-right: 1px solid var(--line); display: flex; flex-direction: column; z-index: 10; }
-.brand { display: flex; gap: 13px; align-items: center; text-align: left; padding: 0 0 42px 9px; font-family: var(--serif); font-size: 27px; letter-spacing: 3px; }
-.brand-symbol { width: 42px; height: 47px; border-radius: 13px 13px 15px 15px; background: var(--accent); display: grid; place-items: center; color: #faf8ef; transform: rotate(-4deg); }
+.brand { display: flex; gap: 8px; align-items: center; text-align: left; padding: 0 0 42px 0; font-family: Georgia, 'Times New Roman', serif; font-size: 26px; font-weight: 600; letter-spacing: -.9px; white-space: nowrap; }
+.brand-symbol { width: 44px; height: 48px; display: grid; place-items: center; flex-shrink: 0; }
+.brand-mark { display: block; object-fit: contain; flex-shrink: 0; }
 .brand small { display: block; margin-top: 8px; font: 10px/1.4 'Microsoft YaHei', sans-serif; letter-spacing: 1px; color: var(--muted); }
 .sidebar-label { font-size: 10px; color: var(--muted); padding: 0 14px 15px; letter-spacing: 2px; }
 .sidebar nav { display: flex; flex-direction: column; gap: 9px; }
@@ -311,7 +312,7 @@ input[type='range'] { accent-color: var(--accent); height: 24px; cursor: pointer
 @media (min-width: 1600px) { .welcome { padding: 37px 50px; } .welcome h1 { font-size: 43px; } .landscape { max-width: 400px; } }
 @media (max-width: 1200px) and (min-width: 761px) {
   .sidebar { width: 200px; padding: 32px 17px 20px; } .main { margin-left: 200px; } .topbar { margin: 0 29px; } .content { padding: 23px 29px 0; }
-  .brand { padding-left: 5px; gap: 10px; } .brand small { font-size: 9px; letter-spacing: 0; }
+  .brand { padding-left: 0; gap: 6px; font-size: 24px; } .brand small { font-size: 9px; letter-spacing: 0; }
   .welcome { padding: 29px 27px; gap: 15px; } .welcome h1 { font-size: 30px; }
   .overview-stats { gap: 0; } .overview-stats > div { padding: 0 14px; } .overview-stats strong { font-size: 28px; }
   .home-bottom { gap: 21px; } .section-heading h2 { font-size: 17px; } .reflection-card { padding: 18px; }
@@ -324,7 +325,7 @@ input[type='range'] { accent-color: var(--accent); height: 24px; cursor: pointer
   .sidebar, .breadcrumb, .top-record { display: none; }
   .main { margin-left: 0; }
   .topbar { height: 67px; margin: 0 22px; gap: 10px; }
-  .mobile-brand { display: flex; align-items: center; gap: 9px; color: var(--accent); font: 23px var(--serif); letter-spacing: 2px; }
+  .mobile-brand { display: flex; align-items: center; gap: 6px; color: var(--accent); font: 600 22px Georgia, 'Times New Roman', serif; letter-spacing: -.8px; white-space: nowrap; }
   .mobile-settings { display: inline-flex; }
   .icon-button, .primary-button, .quiet-button { min-height: 44px; }
   .icon-button { min-width: 44px; }
