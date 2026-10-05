@@ -18,7 +18,7 @@
 
 本轮原型包含我的手账、人生时间轴、心愿与目标、资金安排。可以新增/编辑目标、大事记与资金，保存感想、分类与三级重要程度，预览日期调整并撤销，切换三种配色，导出 JSON。编辑只保存到当前浏览器的 IndexedDB 中，不会跨设备同步。初始数据均为虚构示例，参考日固定为 2026-10-05；请先用虚构内容审阅。
 
-GitHub 网页授权已成功，已创建 [Flying-Angels/hawtend](https://github.com/Flying-Angels/hawtend) 私有仓库并配置 `origin`；本次变更提交后上传，见 [GitHub 接入记录](docs/07-GitHub版本管理接入.md)。依赖、构建产物、截图、个人账单、健康报告及密钥排除在版本库之外。Logo 原图、生成提示词和实际界面检查见 [HawTend 品牌与 Logo](docs/08-HawTend品牌与Logo.md)。
+GitHub 网页授权已成功，已创建 [Flying-Angels/hawtend](https://github.com/Flying-Angels/hawtend) 私有仓库并配置 `origin`；代码、文档和品牌资产已推送到 `main` 与 `codex/phase0-prototype`，见 [GitHub 接入记录](docs/07-GitHub版本管理接入.md)。依赖、构建产物、截图、个人账单、健康报告及密钥排除在版本库之外。Logo 原图、生成提示词和实际界面检查见 [HawTend 品牌与 Logo](docs/08-HawTend品牌与Logo.md)。
 
 ## 开发与预览
 

@@ -1,7 +1,7 @@
 # HawTend：GitHub 版本管理接入
 
 记录日期：2026-10-05\
-当前状态：GitHub 插件与命令行账号连接成功；已建立 hawtend 私有远程仓库，等待本次品牌变更提交后上传。
+当前状态：GitHub 插件与命令行账号连接成功；已建立 hawtend 私有远程仓库，代码、文档和品牌资产已推送。
 
 ## 已确认与已准备
 
@@ -20,12 +20,12 @@ GitHub 官方网页授权成功，`gh auth status` 核实账号 Flying-Angels，
 | 可见性 | 私有；应用代码和需求可保存，个人账单、报告与密钥排除 |
 | 远程别名 | `origin` |
 | 远程地址 | `https://github.com/Flying-Angels/hawtend.git` |
-| 默认分支 | 计划 `main`，本次提交后推送并核实 |
+| 默认分支 | `main`，已推送并核实 |
 | 本地开发分支 | `codex/phase0-prototype` |
 | 当前已提交原型 | `b7ad6e1` |
-| 云端 | 私有仓库已创建；代码上传待本次提交后完成 |
+| 云端 | 私有仓库已创建，默认分支与开发分支均已上传 |
 
-已确认终端账号，检查同名仓库不存在，再建立私有仓库并配置 `origin`。本次提交后，助手推送默认分支 `main` 与开发分支 `codex/phase0-prototype`。首次上传包括需求文档、原型代码、依赖锁文件、品牌资产、云端迁移与验证代码；云端准备文件仍保留“未完成实测”的说明。
+已确认终端账号，检查同名仓库不存在，再建立私有仓库并配置 `origin`。已推送默认分支 `main` 与开发分支 `codex/phase0-prototype`，通过 `git ls-remote` 核实首批上传对应品牌提交 `9d7840b`，GitHub 返回 `isPrivate: true`。首次上传包括需求文档、原型代码、依赖锁文件、品牌资产、云端迁移与验证代码；云端准备文件仍保留“未完成实测”的说明。本次状态说明作为后续小步提交同步。
 
 `.gitignore` 排除 `node_modules/`、`dist/`、`output/`、`.env*`（仅公开配置模板 `.env.example` 例外）、`private-data/` 和日志。浏览器手账数据存在 IndexedDB，不在代码仓库中。
 
