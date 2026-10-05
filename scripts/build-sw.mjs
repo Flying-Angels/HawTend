@@ -20,7 +20,7 @@ self.addEventListener('fetch', event => {
     event.respondWith(fetch(event.request).catch(() => caches.match('/index.html', { ignoreVary: true })));
   } else if (url.pathname.startsWith('/assets/') || FILES.includes(url.pathname)) {
     // 仅限同源构建静态资源；避免预览服务器的 Vary: Origin 使模块请求错过预缓存。
-    event.respondWith(caches.match(event.request, { ignoreVary: true }).then(hit => hit || fetch(event.request)));
+    event.respondWith(caches.match(event.request, { ignoreVary: true, ignoreSearch: true }).then(hit => hit || fetch(event.request)));
   }
 });
 `)

@@ -26,16 +26,28 @@ try {
     if (Test-Path -LiteralPath $zipPath) { Remove-Item -LiteralPath $zipPath }
     [System.IO.Compression.ZipFile]::CreateFromDirectory((Join-Path $projectDir 'dist'), $zipPath)
 
-    # Wrap existing PNG artwork in an ICO container; no new artwork is generated.
-    $png = [System.IO.File]::ReadAllBytes((Join-Path $projectDir 'public/brand/hawtend-logo-256.png'))
+    # Use the same approved mark on paper as the PWA, with native small-size frames.
+    $frames = @(
+        @{ Size = 16; Path = 'public/brand/windows-icon-16.png' },
+        @{ Size = 32; Path = 'public/hawtend-favicon-32.png' },
+        @{ Size = 48; Path = 'public/brand/windows-icon-48.png' },
+        @{ Size = 256; Path = 'public/brand/windows-icon-256.png' }
+    )
+    foreach ($frame in $frames) { $frame.Bytes = [System.IO.File]::ReadAllBytes((Join-Path $projectDir $frame.Path)) }
     $iconPath = Join-Path $buildDir 'hawtend.ico'
     $iconStream = [System.IO.File]::Create($iconPath)
     $writer = [System.IO.BinaryWriter]::new($iconStream)
     try {
-        $writer.Write([uint16]0); $writer.Write([uint16]1); $writer.Write([uint16]1)
-        $writer.Write([byte]0); $writer.Write([byte]0); $writer.Write([byte]0); $writer.Write([byte]0)
-        $writer.Write([uint16]1); $writer.Write([uint16]32)
-        $writer.Write([uint32]$png.Length); $writer.Write([uint32]22); $writer.Write($png)
+        $writer.Write([uint16]0); $writer.Write([uint16]1); $writer.Write([uint16]$frames.Count)
+        $offset = 6 + 16 * $frames.Count
+        foreach ($frame in $frames) {
+            $edge = if ($frame.Size -eq 256) { 0 } else { $frame.Size }
+            $writer.Write([byte]$edge); $writer.Write([byte]$edge); $writer.Write([byte]0); $writer.Write([byte]0)
+            $writer.Write([uint16]1); $writer.Write([uint16]32)
+            $writer.Write([uint32]$frame.Bytes.Length); $writer.Write([uint32]$offset)
+            $offset += $frame.Bytes.Length
+        }
+        foreach ($frame in $frames) { $writer.Write([byte[]]$frame.Bytes) }
     } finally { $writer.Dispose() }
 
     $exePath = Join-Path $releaseDir 'HawTend.exe'

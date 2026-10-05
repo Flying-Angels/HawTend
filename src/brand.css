@@ -1,0 +1,18 @@
+@font-face {
+  font-family: 'HawLora';
+  src: url('./assets/fonts/lora-latin.woff2') format('woff2');
+  font-style: normal;
+  font-weight: 400 600;
+  font-display: swap;
+}
+
+:root {
+  --brand-font: 'HawLora', serif;
+  --brand-weight: 450;
+  --brand-tracking: -.65px;
+  --brand-color: #506455;
+}
+
+@media (max-width: 360px) {
+  .mobile-brand { font-size: 20px; }
+}

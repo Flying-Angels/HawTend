@@ -1,9 +1,25 @@
 # Windows-only authoring helper. Generated PNG assets are committed; npm build does not need this script.
-param([string]$Source = 'public/brand/hawtend-mascot-v1.png')
+param([string]$Source = 'src/assets/hawtend-mark.svg')
 $ErrorActionPreference = 'Stop'
 Add-Type -AssemblyName System.Drawing
 $projectDirectory = Split-Path -Parent $PSScriptRoot
 $sourcePath = Join-Path $projectDirectory $Source
+if ([System.IO.Path]::GetExtension($sourcePath) -eq '.svg') {
+  $node = (Get-Command node.exe -ErrorAction Stop).Source
+  $browserCli = (Get-Command playwright-cli.cmd -ErrorAction Stop).Source
+  & $node (Join-Path $PSScriptRoot 'rasterize-brand-svg.mjs') $sourcePath
+  if ($LASTEXITCODE -ne 0) { throw 'SVG authoring helper failed.' }
+  $rasterStarted = [DateTime]::UtcNow
+  $sourcePath = Join-Path $projectDirectory 'public/brand/hawtend-logo-source-1024.png'
+  try {
+    & $browserCli -s=hawtend-brand-icons open about:blank
+    if ($LASTEXITCODE -ne 0) { throw 'Icon browser failed to start.' }
+    $renderResult = & $browserCli -s=hawtend-brand-icons run-code --filename (Join-Path $projectDirectory 'output/brand-build/rasterize.js') 2>&1
+    if ($LASTEXITCODE -ne 0 -or ($renderResult -join "`n") -match '### Error') { throw "SVG rasterization failed: $renderResult" }
+    if (-not (Test-Path -LiteralPath $sourcePath) -or (Get-Item -LiteralPath $sourcePath).LastWriteTimeUtc -lt $rasterStarted) { throw 'SVG raster output was not updated.' }
+    Write-Output 'Approved G SVG rasterized at 1024px with transparency.'
+  } finally { & $browserCli -s=hawtend-brand-icons close | Out-Null }
+}
 $image = [System.Drawing.Bitmap]::new($sourcePath)
 
 function Write-BrandIcon([int]$Size, [double]$Scale, [bool]$Opaque, [string]$RelativePath) {
@@ -33,6 +49,9 @@ try {
   Write-BrandIcon 180 .94 $true 'public/hawtend-apple-touch-180.png'
   Write-BrandIcon 192 .94 $true 'public/hawtend-icon-192.png'
   Write-BrandIcon 512 .94 $true 'public/hawtend-icon-512.png'
-  Write-BrandIcon 512 .76 $true 'public/hawtend-maskable-512.png'
+  Write-BrandIcon 512 .68 $true 'public/hawtend-maskable-512.png'
+  Write-BrandIcon 16 .94 $true 'public/brand/windows-icon-16.png'
+  Write-BrandIcon 48 .94 $true 'public/brand/windows-icon-48.png'
+  Write-BrandIcon 256 .94 $true 'public/brand/windows-icon-256.png'
 } finally { $image.Dispose() }
 Write-Output 'HawTend transparent mark and opaque app icon sizes generated.'
