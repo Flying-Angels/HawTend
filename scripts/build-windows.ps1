@@ -26,10 +26,10 @@ try {
     if (Test-Path -LiteralPath $zipPath) { Remove-Item -LiteralPath $zipPath }
     [System.IO.Compression.ZipFile]::CreateFromDirectory((Join-Path $projectDir 'dist'), $zipPath)
 
-    # Use the same approved mark on paper as the PWA, with native small-size frames.
+    # Windows uses the approved mark on transparency, including all small-size frames.
     $frames = @(
         @{ Size = 16; Path = 'public/brand/windows-icon-16.png' },
-        @{ Size = 32; Path = 'public/hawtend-favicon-32.png' },
+        @{ Size = 32; Path = 'public/brand/windows-icon-32.png' },
         @{ Size = 48; Path = 'public/brand/windows-icon-48.png' },
         @{ Size = 256; Path = 'public/brand/windows-icon-256.png' }
     )
@@ -53,6 +53,8 @@ try {
     $exePath = Join-Path $releaseDir 'HawTend.exe'
     & $compiler /nologo /target:winexe /platform:anycpu /optimize+ /codepage:65001 "/win32icon:$iconPath" "/resource:$iconPath,HawTend.Icon" "/resource:$zipPath,HawTend.Assets" "/out:$exePath" /reference:System.Windows.Forms.dll /reference:System.Drawing.dll /reference:System.IO.Compression.dll (Join-Path $projectDir 'windows\HawTend.cs')
     if ($LASTEXITCODE -ne 0) { throw 'Windows build failed.' }
+    # A separate ICO lets shortcuts use the new artwork without reusing cached EXE icons.
+    Copy-Item -LiteralPath $iconPath -Destination (Join-Path $releaseDir 'HawTend-transparent.ico') -Force
     Get-Item -LiteralPath $exePath | Select-Object FullName,Length
     Get-FileHash -LiteralPath $exePath -Algorithm SHA256
 } finally { Pop-Location }

@@ -50,8 +50,10 @@ try {
   Write-BrandIcon 192 .94 $true 'public/hawtend-icon-192.png'
   Write-BrandIcon 512 .94 $true 'public/hawtend-icon-512.png'
   Write-BrandIcon 512 .68 $true 'public/hawtend-maskable-512.png'
-  Write-BrandIcon 16 .94 $true 'public/brand/windows-icon-16.png'
-  Write-BrandIcon 48 .94 $true 'public/brand/windows-icon-48.png'
-  Write-BrandIcon 256 .94 $true 'public/brand/windows-icon-256.png'
+  # Desktop icons retain alpha; the paper backgrounds above are only for PWA/Apple icons.
+  Write-BrandIcon 16 .94 $false 'public/brand/windows-icon-16.png'
+  Write-BrandIcon 32 .94 $false 'public/brand/windows-icon-32.png'
+  Write-BrandIcon 48 .94 $false 'public/brand/windows-icon-48.png'
+  Write-BrandIcon 256 .94 $false 'public/brand/windows-icon-256.png'
 } finally { $image.Dispose() }
 Write-Output 'HawTend transparent mark and opaque app icon sizes generated.'
