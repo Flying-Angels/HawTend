@@ -44,6 +44,17 @@ export const categories: Record<Category, { label: string; color: string; light:
 }
 export const importanceLabels = { 1: '日常记录', 2: '重要事件', 3: '人生里程碑' }
 
+export function emptyJournal(theme: Journal['theme'] = 'paper'): Journal {
+  return { schemaVersion: 1, theme, moments: [], goals: [], funds: [] }
+}
+
+// Only the untouched fixture is omitted; edited legacy journals must be preserved.
+export function isUneditedSample(journal: Journal): boolean {
+  const sample = seedJournal()
+  return journal.schemaVersion === 1 && (['moments', 'goals', 'funds'] as const)
+    .every(key => JSON.stringify(journal[key]) === JSON.stringify(sample[key]))
+}
+
 export function seedJournal(): Journal {
   return {
     schemaVersion: 1,

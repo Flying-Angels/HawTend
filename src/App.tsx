@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import type { CSSProperties, FormEvent, ReactNode } from 'react'
 import { BrandMark, Icon, Landscape } from './Icons'
-import { categories, importanceLabels, seedJournal } from './model'
+import { categories, emptyJournal, importanceLabels, seedJournal } from './model'
 import type { Category, Fund, Goal, Importance, Journal, Moment } from './model'
 import { cents, exactYuan, futureValue, monthlySaving, monthsUntil, yuan } from './finance'
 import { readJournal, writeJournal } from './storage'
@@ -102,6 +102,7 @@ function Timeline({ journal, compact = false, open }: { journal: Journal; compac
 }
 
 function FinanceCurve({ funds }: { funds: Fund[] }) {
+  if (!funds.length) return <div className="blank-card"><Icon name="sprout" size={32} /><h2>先放好你的第一笔积蓄</h2><p>添加资金后，这里会画出它慢慢生长的轨迹。</p></div>
   const dates = Array.from({ length: 11 }, (_, i) => `${2026 + i}-10-05`)
   const balances = dates.map(d => funds.reduce((sum, f) => sum + futureValue(f, d), 0))
   const available = dates.map(d => funds.filter(f => f.liquid || (f.maturityDate && f.maturityDate <= d)).reduce((sum, f) => sum + futureValue(f, d), 0))
@@ -117,7 +118,7 @@ function GoalCard({ goal, open }: { goal: Goal; open: (panel: Panel) => void }) 
   </button>
 }
 
-function MomentForm({ item, fresh, save }: { item: Moment; fresh?: boolean; save: (item: Moment) => Promise<boolean> }) {
+function MomentForm({ item, fresh, save, sample = false }: { item: Moment; fresh?: boolean; save: (item: Moment) => Promise<boolean>; sample?: boolean }) {
   const [draft, setDraft] = useState(item)
   const [pending, setPending] = useState(false)
   const [error, setError] = useState('')
@@ -141,14 +142,14 @@ function MomentForm({ item, fresh, save }: { item: Moment; fresh?: boolean; save
     <label>发生了什么<textarea rows={3} value={draft.story} onChange={e => setDraft({ ...draft, story: e.target.value })} placeholder="记录事情本身，几句话就好。" /></label>
     <div className="reflection-field"><label><span><Icon name="edit" size={17} />留给自己的话 <small>感想 · 可稍后补写</small></span><textarea rows={5} value={draft.reflection} onChange={e => setDraft({ ...draft, reflection: e.target.value })} placeholder="当时的心情、后来想通的事，都可以留在这里。" /></label></div>
     {preview && <div className="notice">日期将从 {dateLabel(item.date)} 改为 {dateLabel(draft.date)}，节点位置随之更新。感想与资金安排不会改变；保存后可撤销。</div>}
-    {error && <p role="alert" className="form-error">{error}</p>}<div className="editor-footer"><span>仅保存到此浏览器</span><button className="primary-button" disabled={pending} type="submit"><Icon name="check" size={17} />{pending ? '正在保存…' : changedDate && !preview ? '预览日期调整' : preview ? '确认调整并保存' : '收进手账'}</button></div>
+    {error && <p role="alert" className="form-error">{error}</p>}<div className="editor-footer"><span>{sample ? '样例体验 · 不写入个人手账' : '仅保存到此浏览器'}</span><button className="primary-button" disabled={pending} type="submit"><Icon name="check" size={17} />{pending ? '正在保存…' : changedDate && !preview ? '预览日期调整' : preview ? '确认调整并保存' : '收进手账'}</button></div>
   </form>
 }
 
-function GoalForm({ item, fresh, journal, save }: { item: Goal; fresh?: boolean; journal: Journal; save: (item: Goal) => Promise<boolean> }) {
+function GoalForm({ item, fresh, journal, save, sample = false }: { item: Goal; fresh?: boolean; journal: Journal; save: (item: Goal) => Promise<boolean>; sample?: boolean }) {
   const [draft, setDraft] = useState(item)
-  const [expense, setExpense] = useState('8000')
-  const [obligation, setObligation] = useState('2000')
+  const [expense, setExpense] = useState(sample ? '8000' : '0')
+  const [obligation, setObligation] = useState(sample ? '2000' : '0')
   const [error, setError] = useState('')
   const [pending, setPending] = useState(false)
   const [preview, setPreview] = useState(false)
@@ -206,7 +207,9 @@ function FundForm({ item, journal, save }: { item: Fund; journal: Journal; save:
 }
 
 export default function App() {
-  const [journal, setJournal] = useState<Journal>(seedJournal)
+  const [journal, setJournal] = useState<Journal>(emptyJournal)
+  const [sampleMode, setSampleMode] = useState(false)
+  const personalJournal = useRef<Journal>(emptyJournal())
   const [page, setPage] = useState<Page>('home')
   const [panel, setPanel] = useState<Panel | null>(null)
   const [status, setStatus] = useState<Status>('loading')
@@ -220,7 +223,7 @@ export default function App() {
   const loaded = useRef(false)
   useEffect(() => {
     let active = true
-    readJournal().then(saved => { if (active) { if (saved?.schemaVersion === 1) setJournal(saved); setStatus('saved'); loaded.current = true } }).catch(() => { if (active) { setStatus('failed'); loadError.current = true; loaded.current = true } })
+    readJournal().then(saved => { if (active) { const next = saved?.schemaVersion === 1 ? saved : emptyJournal(); setJournal(next); personalJournal.current = next; setStatus('saved'); loaded.current = true } }).catch(() => { if (active) { setStatus('failed'); loadError.current = true; loaded.current = true } })
     const network = () => setOnline(navigator.onLine)
     const timeline = () => { setPage('timeline'); window.scrollTo(0, 0) }
     const cacheError = () => setCacheFailed(true)
@@ -231,9 +234,14 @@ export default function App() {
   useEffect(() => { if (!toast) return; const timer = setTimeout(() => { setToast(''); setUndo(null) }, 10000); return () => clearTimeout(timer) }, [toast])
   const change = async (next: Journal, message = '已收进这台设备的手账', close = true, allowUndo = true) => {
     if (saving.current || !loaded.current || loadError.current) return false
+    if (sampleMode) {
+      if (allowUndo) setUndo(journal)
+      setJournal(next); setToast('样例已更新，仅在本次体验中保留'); if (close) setPanel(null); return true
+    }
     saving.current = true; setStatus('saving')
     try {
       await writeJournal(next)
+      personalJournal.current = next
       if (allowUndo) setUndo(journal)
       setJournal(next); setStatus('saved'); setToast(message); if (close) setPanel(null); return true
     } catch { setStatus('failed'); return false }
@@ -244,7 +252,13 @@ export default function App() {
   const saveFund = async (item: Fund) => change({ ...journal, funds: journal.funds.some(f => f.id === item.id) ? journal.funds.map(f => f.id === item.id ? item : f) : [...journal.funds, item] })
   const exportData = () => {
     const url = URL.createObjectURL(new Blob([JSON.stringify(journal, null, 2)], { type: 'application/json' }))
-    const link = document.createElement('a'); link.href = url; link.download = `HawTend-原型手账-${TODAY}.json`; link.click(); URL.revokeObjectURL(url)
+    const link = document.createElement('a'); link.href = url; link.download = `HawTend-${sampleMode ? '样例手账' : '我的手账'}-${TODAY}.json`; link.click(); URL.revokeObjectURL(url)
+  }
+  const switchSample = () => {
+    if (saving.current || !loaded.current || loadError.current) return
+    if (sampleMode) setJournal(personalJournal.current)
+    else { personalJournal.current = journal; setJournal(seedJournal()) }
+    setSampleMode(!sampleMode); setPage('home'); setPanel(null); setToast(''); setUndo(null); setStatus('saved'); window.scrollTo(0, 0)
   }
   const newMoment = () => setPanel({ type: 'moment', fresh: true, item: { id: crypto.randomUUID(), title: '', date: TODAY, category: 'life', importance: 1, story: '', reflection: '' } })
   const newGoal = () => setPanel({ type: 'goal', fresh: true, item: { id: crypto.randomUUID(), title: '', date: '2027-12-31', category: 'life', budgetCents: 0, allocatedCents: 0, progress: 0, description: '' } })
@@ -255,31 +269,35 @@ export default function App() {
   const allocated = journal.goals.reduce((sum, g) => sum + g.allocatedCents, 0)
   const latest = [...journal.moments].sort((a, b) => b.date.localeCompare(a.date))[0]
   const disabled = status === 'loading' || status === 'saving' || loadError.current
+  const isBlank = !journal.moments.length && !journal.goals.length && !journal.funds.length
   return <div className="app-shell">
-    <aside className="sidebar"><button className="brand" onClick={() => navigate('home')} aria-label="HawTend，返回我的手账"><span className="brand-symbol"><BrandMark size={44} /></span><span>HawTend<small>照料生活，慢慢生长</small></span></button><span className="sidebar-label">属于你的日子</span><nav aria-label="主要导航">{navItems.map(n => <button key={n.id} className={`nav-item ${page === n.id ? 'active' : ''}`} aria-current={page === n.id ? 'page' : undefined} onClick={() => navigate(n.id)}><Icon name={n.icon} />{n.label}{page === n.id && <span className="nav-dot" />}</button>)}</nav><div className="sidebar-note"><Icon name="sprout" size={27} /><p>不必把每一天填满，<br />慢慢走，也是在向前。</p><span>给未来的自己</span></div><div className="sidebar-bottom"><button className="settings-link" onClick={() => setPanel({ type: 'settings' })}><Icon name="settings" size={18} />手账设置</button><div className="profile"><span className="avatar">我</span><div><strong>我的人生手账</strong><small>个人空间 · 示例数据</small></div></div></div></aside>
-    <main className="main"><header className="topbar"><div className="breadcrumb">我的空间<span>/</span>{navItems.find(n => n.id === page)?.label}</div><span className="mobile-brand"><BrandMark size={29} />HawTend</span><div className="topbar-actions"><span className={`save-status ${status === 'failed' ? 'failed' : ''}`} role="status"><span className="status-dot" />{status === 'loading' ? '正在打开手账' : status === 'saving' ? '正在保存' : status === 'failed' ? '本地保存不可用' : !online ? '离线 · 本机保存' : '仅本机保存'}</span><button className="icon-button mobile-settings" aria-label="手账设置" onClick={() => setPanel({ type: 'settings' })}><Icon name="settings" size={18} /></button><button className="primary-button top-record" disabled={disabled} onClick={() => setPanel({ type: 'new' })}><Icon name="plus" size={17} />记下一刻</button></div></header>
-      <div className="content"><div className="prototype-note"><span>第 0 期 · 可交互设计原型</span><span>示例数据 / 2026.10.05</span></div>
-      {status === 'failed' && <div className="notice" role="alert">{loadError.current ? '本地手账读取失败，当前显示示例且暂停写入，防止覆盖已有数据。请刷新重试。' : '刚才的修改未保存，请在详情中重试。原有记录仍保留。'} <button className="text-button" onClick={exportData}>导出当前内容</button></div>}
+    <aside className="sidebar"><button className="brand" onClick={() => navigate('home')} aria-label="HawTend，返回我的手账"><span className="brand-symbol"><BrandMark size={44} /></span><span>HawTend<small>照料生活，慢慢生长</small></span></button><span className="sidebar-label">属于你的日子</span><nav aria-label="主要导航">{navItems.map(n => <button key={n.id} className={`nav-item ${page === n.id ? 'active' : ''}`} aria-current={page === n.id ? 'page' : undefined} onClick={() => navigate(n.id)}><Icon name={n.icon} />{n.label}{page === n.id && <span className="nav-dot" />}</button>)}</nav><div className="sidebar-note"><Icon name="sprout" size={27} /><p>不必把每一天填满，<br />慢慢走，也是在向前。</p><span>给未来的自己</span></div><div className="sidebar-bottom"><button className="settings-link" onClick={() => setPanel({ type: 'settings' })}><Icon name="settings" size={18} />手账设置</button><div className="profile"><span className="avatar">我</span><div><strong>我的人生手账</strong><small>{sampleMode ? "样例体验 · 虚构数据" : "个人空间 · 本机手账"}</small></div></div></div></aside>
+    <main className="main"><header className="topbar"><div className="breadcrumb">我的空间<span>/</span>{navItems.find(n => n.id === page)?.label}</div><span className="mobile-brand"><BrandMark size={29} />HawTend</span><div className="topbar-actions"><span className={`save-status ${status === 'failed' ? 'failed' : ''}`} role="status"><span className="status-dot" />{sampleMode ? '样例体验' : status === 'loading' ? '正在打开手账' : status === 'saving' ? '正在保存' : status === 'failed' ? '本地保存不可用' : !online ? '离线 · 本机保存' : '仅本机保存'}</span><button className="icon-button mobile-settings" aria-label="手账设置" onClick={() => setPanel({ type: 'settings' })}><Icon name="settings" size={18} /></button><button className="primary-button top-record" disabled={disabled} onClick={() => setPanel({ type: 'new' })}><Icon name="plus" size={17} />记下一刻</button></div></header>
+      <div className="content"><div className="prototype-note"><span>{sampleMode ? '样例手账 · 虚构内容' : '我的手账 · 本机空间'}</span><button className="text-button" disabled={disabled} onClick={switchSample}>{sampleMode ? '回到我的手账' : '看看样例'}<Icon name="arrow" size={13} /></button></div>
+      {sampleMode && <section className="sample-banner" aria-label="样例体验说明"><Icon name="book" size={23} /><div><strong>这是一本用来体验的样例手账</strong><p>可以自由试试。这里的修改不会保存，也不会加入你的个人手账。</p></div></section>}
+      {status === 'failed' && <div className="notice" role="alert">{loadError.current ? '本地手账读取失败，暂不显示已存内容并暂停写入，防止覆盖已有数据。请刷新重试。' : '刚才的修改未保存，请在详情中重试。原有记录仍保留。'} <button className="text-button" onClick={exportData}>导出当前内容</button></div>}
       {cacheFailed && <div className="notice" role="alert">离线页面缓存未建立，请联网使用。已写入本地的记录不受影响。</div>}
       {page === 'home' && <>
         <section className="welcome"><div className="welcome-copy"><span className="eyebrow">MONDAY, OCTOBER 05, 2026</span><h1>把日子过成<br />喜欢的样子<span className="title-dot">。</span></h1><p>收藏走过的路，也给未来留一些期待。</p><button className="text-button" onClick={newGoal} disabled={disabled}>写下一个新心愿<Icon name="arrow" size={17} /></button></div><div className="welcome-art"><Landscape /><span>山有回响，日子有光。</span><Icon name="star" size={17} className="art-star" /></div></section>
         <section className="overview-stats" aria-label="手账概览"><div><span><Icon name="flag" size={16} />正在靠近的心愿</span><strong>{journal.goals.length}<small>个</small></strong><p>每一点进展，都算数</p></div><div><span><Icon name="wallet" size={16} />已为未来留存</span><strong><small>¥</small>{yuan(total)}</strong><p>参考日余额 · 含定期资金</p></div><div><span><Icon name="book" size={16} />值得记住的日子</span><strong>{journal.moments.length}<small>篇</small></strong><p>生活里的小小里程碑</p></div></section>
+        {!sampleMode && isBlank && status === 'saved' && <section className="first-page-card"><span className="first-page-icon"><Icon name="leaf" size={26} /></span><div><h2>生活的第一页，留给你来写。</h2><p>从一个小小的心愿，或今天值得记住的事开始。</p></div><button className="primary-button" disabled={disabled} onClick={newMoment}>记下第一天<Icon name="arrow" size={16} /></button></section>}
         <Timeline journal={journal} compact open={setPanel} />
         <div className="home-bottom"><section className="goals-preview"><div className="section-heading"><div><span className="eyebrow">A LITTLE CLOSER</span><h2>想做的事，慢慢实现</h2></div><button className="text-button" onClick={() => navigate('goals')}>全部心愿<Icon name="arrow" size={16} /></button></div>{journal.goals.slice(0, 3).map(g => <GoalCard key={g.id} goal={g} open={setPanel} />)}{!journal.goals.length && <div className="empty-state">未来还空着，给它留一个心愿吧。<button className="text-button" onClick={newGoal}>添加心愿</button></div>}</section><section className="journal-preview"><div className="section-heading"><div><span className="eyebrow">A NOTE TO MYSELF</span><h2>留给自己的话</h2></div><Icon name="edit" size={19} /></div>{latest ? <button className="reflection-card" onClick={() => setPanel({ type: 'moment', item: latest })}><div><CategoryTag category={latest.category} /><span>{dateLabel(latest.date)}</span></div><span className="quote-mark">“</span><p>{latest.reflection || '这一天的心情，可以慢慢写下来。'}</p><strong>{latest.title}<Icon name="arrow" size={15} /></strong></button> : <div className="empty-state">给今天的自己写几句话。<button className="text-button" onClick={newMoment}>记录一天</button></div>}</section></div>
       </>}
       {page === 'timeline' && <><div className="page-heading"><span className="eyebrow">PAST, PRESENT & POSSIBILITY</span><h1>日子连起来，就是人生。</h1><p>已发生的大事与未来的心愿，在这里相遇。</p></div><Timeline journal={journal} open={setPanel} /><div className="timeline-bottom-note"><Icon name="book" size={25} /><div><strong>事情有大小，感受没有。</strong><p>分类颜色帮你找到同类的日子；重要程度用星标、大小与文字一起区分。</p></div><button className="quiet-button" onClick={newMoment} disabled={disabled}><Icon name="plus" size={17} />记录一个日子</button></div></>}
-      {page === 'goals' && <><div className="page-heading with-action"><div><span className="eyebrow">MAKE ROOM FOR WHAT MATTERS</span><h1>心愿有了位置，<br className="mobile-only" />未来就有了方向。</h1><p>给想做的事一点时间，也一点认真。</p></div><button className="primary-button" onClick={newGoal} disabled={disabled}><Icon name="plus" size={17} />添加心愿</button></div><div className="goal-grid">{journal.goals.map(g => <div key={g.id} className="goal-tile"><CategoryTag category={g.category} /><GoalCard goal={g} open={setPanel} /><p>{g.description}</p><button className="text-button" onClick={() => setPanel({ type: 'goal', item: g })}>看看如何靠近它<Icon name="arrow" size={16} /></button></div>)}</div><div className="gentle-banner"><Icon name="sprout" size={28} /><p>计划可以调整。<br /><span>改变日期前，先看一眼新的储蓄节奏，再决定怎么走。</span></p></div></>}
-      {page === 'funds' && <><div className="page-heading with-action"><div><span className="eyebrow">A LITTLE PEACE OF MIND</span><h1>为想要的生活，<br className="mobile-only" />留一份底气。</h1><p>每一笔积蓄，都有自己的节奏。</p></div><button className="primary-button" onClick={newFund} disabled={disabled}><Icon name="plus" size={17} />添加资金</button></div><div className="fund-summary"><div><span>当前总余额</span><strong><small>¥</small>{yuan(total)}</strong><p>示例参考日 2026.10.05</p></div><div><span>随时可用</span><strong>¥{yuan(liquid)}</strong><p>定期本金和锁定利息暂不计入</p></div><div><span>已分配给心愿</span><strong>¥{yuan(allocated)}</strong><p>活期尚未分配 ¥{yuan(liquid - allocated)}</p></div></div><div className="section-heading"><div><span className="eyebrow">MONEY, WITH A PURPOSE</span><h2>我的资金安排</h2></div><span className="subtle">点击调整余额与收益</span></div><div className="fund-list">{journal.funds.map(f => <button key={f.id} className="fund-row" onClick={() => setPanel({ type: 'fund', item: f })}><span className={`fund-icon ${f.liquid ? 'liquid' : ''}`}><Icon name={f.liquid ? 'wallet' : 'lock'} size={24} /></span><span className="fund-name"><strong>{f.name}</strong><span>{f.liquid ? '活期 · 随时可用' : `定期 · ${dateLabel(f.maturityDate)} 到期`}<span className="small-separator">/</span>{f.mode === 'compound' ? '复利' : '单利'}</span></span><span className="fund-rate"><strong>{f.rate.toFixed(2)}<small>%</small></strong><span>年化假设</span></span><span className="fund-value"><strong>¥{yuan(f.principalCents)}</strong><span>参考日余额</span></span><Icon name="chevron" size={17} /></button>)}</div><FinanceCurve funds={journal.funds} /><div className="notice financial-note"><Icon name="leaf" size={20} /><span>收益只是规划假设，不是保证。资金配置变化后，心愿中的月储蓄会重新计算；预测与实际账单分开记录。</span></div></>}
+      {page === 'goals' && <><div className="page-heading with-action"><div><span className="eyebrow">MAKE ROOM FOR WHAT MATTERS</span><h1>心愿有了位置，<br className="mobile-only" />未来就有了方向。</h1><p>给想做的事一点时间，也一点认真。</p></div><button className="primary-button" onClick={newGoal} disabled={disabled}><Icon name="plus" size={17} />添加心愿</button></div><div className="goal-grid">{journal.goals.map(g => <div key={g.id} className="goal-tile"><CategoryTag category={g.category} /><GoalCard goal={g} open={setPanel} /><p>{g.description}</p><button className="text-button" onClick={() => setPanel({ type: 'goal', item: g })}>看看如何靠近它<Icon name="arrow" size={16} /></button></div>)}</div>{!journal.goals.length && <section className="blank-card"><Icon name="flag" size={32} /><h2>把第一份期待，写在这里。</h2><p>不必一次想好整个人生，先给一件想做的事留个位置。</p><button className="quiet-button" disabled={disabled} onClick={newGoal}>添加第一个心愿<Icon name="plus" size={16} /></button></section>}<div className="gentle-banner"><Icon name="sprout" size={28} /><p>计划可以调整。<br /><span>改变日期前，先看一眼新的储蓄节奏，再决定怎么走。</span></p></div></>}
+      {page === 'funds' && <><div className="page-heading with-action"><div><span className="eyebrow">A LITTLE PEACE OF MIND</span><h1>为想要的生活，<br className="mobile-only" />留一份底气。</h1><p>每一笔积蓄，都有自己的节奏。</p></div><button className="primary-button" onClick={newFund} disabled={disabled}><Icon name="plus" size={17} />添加资金</button></div><div className="fund-summary"><div><span>当前总余额</span><strong><small>¥</small>{yuan(total)}</strong><p>{sampleMode ? "示例参考日" : "试算参考日"} 2026.10.05</p></div><div><span>随时可用</span><strong>¥{yuan(liquid)}</strong><p>定期本金和锁定利息暂不计入</p></div><div><span>已分配给心愿</span><strong>¥{yuan(allocated)}</strong><p>活期尚未分配 ¥{yuan(liquid - allocated)}</p></div></div><div className="section-heading"><div><span className="eyebrow">MONEY, WITH A PURPOSE</span><h2>我的资金安排</h2></div><span className="subtle">点击调整余额与收益</span></div><div className="fund-list">{journal.funds.map(f => <button key={f.id} className="fund-row" onClick={() => setPanel({ type: 'fund', item: f })}><span className={`fund-icon ${f.liquid ? 'liquid' : ''}`}><Icon name={f.liquid ? 'wallet' : 'lock'} size={24} /></span><span className="fund-name"><strong>{f.name}</strong><span>{f.liquid ? '活期 · 随时可用' : `定期 · ${dateLabel(f.maturityDate)} 到期`}<span className="small-separator">/</span>{f.mode === 'compound' ? '复利' : '单利'}</span></span><span className="fund-rate"><strong>{f.rate.toFixed(2)}<small>%</small></strong><span>年化假设</span></span><span className="fund-value"><strong>¥{yuan(f.principalCents)}</strong><span>参考日余额</span></span><Icon name="chevron" size={17} /></button>)}</div><FinanceCurve funds={journal.funds} /><div className="notice financial-note"><Icon name="leaf" size={20} /><span>收益只是规划假设，不是保证。资金配置变化后，心愿中的月储蓄会重新计算；预测与实际账单分开记录。</span></div></>}
       <footer className="page-footer"><span>HawTend · 好好生活，慢慢记录</span><button onClick={() => setPanel({ type: 'settings' })} className="text-button">本地原型 · 云同步未连接<Icon name="cloud" size={15} /></button></footer>
       </div></main>
     <nav className="mobile-nav" aria-label="手机主要导航">{navItems.map(n => <button key={n.id} className={page === n.id ? 'active' : ''} aria-current={page === n.id ? 'page' : undefined} onClick={() => navigate(n.id)}><Icon name={n.icon} size={21} /><span>{n.short}</span></button>)}<button className="mobile-add" disabled={disabled} aria-label="记下一刻" onClick={() => setPanel({ type: 'new' })}><Icon name="plus" size={23} /><span>记录</span></button></nav>
     {panel && <Modal title={panel.type === 'moment' ? panel.fresh ? '记下一个日子' : '回到那一天' : panel.type === 'goal' ? panel.fresh ? '给未来一个心愿' : '慢慢靠近这个心愿' : panel.type === 'fund' ? panel.fresh ? '给积蓄一个位置' : '安排这笔积蓄' : panel.type === 'settings' ? '把手账调成喜欢的样子' : panel.type === 'cluster' ? '这一段，发生了这些事' : '这一刻，想记下什么？'} subtitle={panel.type === 'moment' ? '事情与感想，分别收藏。' : panel.type === 'new' ? '一个已经发生的日子，或一个正在期待的未来。' : undefined} close={closePanel}>
       {panel.type === 'cluster' && <div className="cluster-list">{panel.items.map(({ kind, item }) => <button key={item.id} onClick={() => setPanel(kind === 'moment' ? { type: 'moment', item: item as Moment } : { type: 'goal', item: item as Goal })}><CategoryTag category={item.category} /><span><strong>{item.title}</strong><small>{dateLabel(item.date)} · {kind === 'moment' ? importanceLabels[(item as Moment).importance] : '未来计划'}</small></span><Icon name="chevron" size={17} /></button>)}</div>}
-      {panel.type === 'moment' && <MomentForm key={panel.item.id} item={panel.item} fresh={panel.fresh} save={saveMoment} />}
-      {panel.type === 'goal' && <GoalForm key={panel.item.id} item={panel.item} fresh={panel.fresh} journal={journal} save={saveGoal} />}
+      {sampleMode && panel.type !== 'settings' && <p className="notice">样例体验：这里的修改仅在本次浏览中保留，不会写入个人手账。</p>}
+      {panel.type === 'moment' && <MomentForm key={panel.item.id} item={panel.item} fresh={panel.fresh} save={saveMoment} sample={sampleMode} />}
+      {panel.type === 'goal' && <GoalForm key={panel.item.id} item={panel.item} fresh={panel.fresh} journal={journal} save={saveGoal} sample={sampleMode} />}
       {panel.type === 'fund' && <FundForm key={panel.item.id} item={panel.item} journal={journal} save={saveFund} />}
       {panel.type === 'new' && <div className="new-options"><button onClick={newMoment}><span className="option-icon"><Icon name="book" size={26} /></span><span><strong>值得记住的日子</strong><small>记录事情，也记录当时的心情</small></span><Icon name="arrow" size={19} /></button><button onClick={newGoal}><span className="option-icon blue"><Icon name="flag" size={26} /></span><span><strong>对未来的一个期待</strong><small>放上时间轴，慢慢计划与实现</small></span><Icon name="arrow" size={19} /></button></div>}
-      {panel.type === 'settings' && <div className="settings-panel"><p className="settings-intro">三种生活的底色，试试哪一种更像你。<br /><span>HawTend · 好好照料生活，也记录慢慢长大的自己。</span></p><div className="theme-options">{([{ id: 'paper', title: '暖纸手账', note: '纸色与鼠尾草绿，安静而有温度', colors: ['#f5f2eb', '#566958', '#c79265'] }, { id: 'forest', title: '森林笔记', note: '浅雾绿与深林色，清新、自然', colors: ['#edf1e9', '#41654f', '#94a881'] }, { id: 'dusk', title: '暮色日记', note: '浅燕麦与梅子色，柔软而内敛', colors: ['#f4eef0', '#805d70', '#c1949d'] }] as const).map(t => <button key={t.id} disabled={disabled} className={`theme-option ${journal.theme === t.id ? 'chosen' : ''}`} aria-pressed={journal.theme === t.id} onClick={() => change({ ...journal, theme: t.id }, '手账配色已保存到本机', false)}><span className="swatches">{t.colors.map(c => <i key={c} style={{ background: c }} />)}</span><strong>{t.title}</strong><span>{t.note}</span>{journal.theme === t.id && <Icon name="check" size={17} />}</button>)}</div><div className="settings-storage"><Icon name="cloud" size={25} /><div><h3>这里是本地设计原型</h3><p>云同步尚未接入。编辑仅存于当前浏览器，不会同步到另一台设备。浏览器清理可能删除本地内容，可以先导出留存。</p></div></div><button className="quiet-button export-button" onClick={exportData}><Icon name="download" size={18} />导出原型手账 JSON</button><p className="fine-print">导入恢复、账户登录、真实账单与健康记录在后续分期实现。请先用虚构内容体验流程。</p></div>}
+      {panel.type === 'settings' && <div className="settings-panel"><p className="settings-intro">三种生活的底色，试试哪一种更像你。<br /><span>HawTend · 好好照料生活，也记录慢慢长大的自己。</span></p><div className="theme-options">{([{ id: 'paper', title: '暖纸手账', note: '纸色与鼠尾草绿，安静而有温度', colors: ['#f5f2eb', '#566958', '#c79265'] }, { id: 'forest', title: '森林笔记', note: '浅雾绿与深林色，清新、自然', colors: ['#edf1e9', '#41654f', '#94a881'] }, { id: 'dusk', title: '暮色日记', note: '浅燕麦与梅子色，柔软而内敛', colors: ['#f4eef0', '#805d70', '#c1949d'] }] as const).map(t => <button key={t.id} disabled={disabled} className={`theme-option ${journal.theme === t.id ? 'chosen' : ''}`} aria-pressed={journal.theme === t.id} onClick={() => change({ ...journal, theme: t.id }, '手账配色已保存到本机', false)}><span className="swatches">{t.colors.map(c => <i key={c} style={{ background: c }} />)}</span><strong>{t.title}</strong><span>{t.note}</span>{journal.theme === t.id && <Icon name="check" size={17} />}</button>)}</div><div className="settings-storage"><Icon name="book" size={25} /><div><h3>{sampleMode ? "正在体验样例手账" : "样例和你的手账，分别收藏"}</h3><p>新手账从空白开始。样例只用于体验，修改不会加入个人记录。</p><button className="text-button" disabled={disabled} onClick={switchSample}>{sampleMode ? "回到我的手账" : "查看样例手账"}<Icon name="arrow" size={16} /></button></div></div><div className="settings-storage"><Icon name="cloud" size={25} /><div><h3>这里是本地设计原型</h3><p>云同步尚未接入。编辑仅存于当前浏览器，不会同步到另一台设备。浏览器清理可能删除本地内容，可以先导出留存。</p></div></div><button className="quiet-button export-button" onClick={exportData}><Icon name="download" size={18} />{sampleMode ? "导出样例手账 JSON" : "导出我的手账 JSON"}</button><p className="fine-print">导入恢复、账户登录、真实账单与健康记录在后续分期实现。请先用虚构内容体验流程。</p></div>}
     </Modal>}
     {toast && <div className="toast" role="status"><Icon name="check" size={18} /><span>{toast}</span>{undo && <button onClick={async () => { const previous = undo; if (previous && await change(previous, '已撤销上一次修改', false, false)) setUndo(null) }}>撤销</button>}<button className="icon-button" aria-label="关闭保存提示" onClick={() => { setToast(''); setUndo(null) }}><Icon name="close" size={15} /></button></div>}
   </div>
