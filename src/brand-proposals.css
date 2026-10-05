@@ -23,7 +23,11 @@
 :root[data-brand-preview='b'] { --brand-font: 'HawDMSans', sans-serif; --brand-weight: 500; --brand-tracking: -.45px; }
 :root[data-brand-preview='c'],
 :root[data-brand-preview='ac'],
-:root[data-brand-preview='a2'] { --brand-font: 'HawLora', serif; --brand-weight: 450; --brand-tracking: -.65px; }
+:root[data-brand-preview='a2'],
+:root[data-brand-preview='e'],
+:root[data-brand-preview='f'],
+:root[data-brand-preview='g'],
+:root[data-brand-preview='h'] { --brand-font: 'HawLora', serif; --brand-weight: 450; --brand-tracking: -.65px; }
 :root[data-brand-preview='d'] { --brand-font: 'HawManrope', sans-serif; --brand-weight: 600; --brand-tracking: -.85px; }
 :root[data-brand-preview] .brand {
   gap: 11px;
