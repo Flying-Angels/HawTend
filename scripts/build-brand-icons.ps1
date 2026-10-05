@@ -45,7 +45,9 @@ function Write-BrandIcon([int]$Size, [double]$Scale, [bool]$Opaque, [string]$Rel
 try {
   Write-BrandIcon 128 1 $false 'src/assets/hawtend-mark-128.png'
   Write-BrandIcon 256 1 $false 'public/brand/hawtend-logo-256.png'
-  Write-BrandIcon 32 .94 $true 'public/hawtend-favicon-32.png'
+  Write-BrandIcon 32 .94 $false 'public/hawtend-favicon-32.png'
+  # Fresh filename avoids opaque icons returned by an older cache that ignores query strings.
+  Write-BrandIcon 32 .94 $false 'public/hawtend-favicon-transparent-32.png'
   Write-BrandIcon 180 .94 $true 'public/hawtend-apple-touch-180.png'
   Write-BrandIcon 192 .94 $true 'public/hawtend-icon-192.png'
   Write-BrandIcon 512 .94 $true 'public/hawtend-icon-512.png'
