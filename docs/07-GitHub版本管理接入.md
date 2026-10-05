@@ -22,7 +22,7 @@ GitHub 官方网页授权成功，`gh auth status` 核实账号 Flying-Angels，
 | 远程地址 | `https://github.com/Flying-Angels/hawtend.git` |
 | 默认分支 | `main`，已推送并核实 |
 | 本地开发分支 | `codex/phase0-prototype` |
-| 当前已提交原型 | `b7ad6e1` |
+| 首个原型提交 | `b7ad6e1`；之后按小步提交持续同步 |
 | 云端 | 私有仓库已创建，默认分支与开发分支均已上传 |
 
 已确认终端账号，检查同名仓库不存在，再建立私有仓库并配置 `origin`。已推送默认分支 `main` 与开发分支 `codex/phase0-prototype`，通过 `git ls-remote` 核实首批上传对应品牌提交 `9d7840b`，GitHub 返回 `isPrivate: true`。首次上传包括需求文档、原型代码、依赖锁文件、品牌资产、云端迁移与验证代码；云端准备文件仍保留“未完成实测”的说明。本次状态说明作为后续小步提交同步。
