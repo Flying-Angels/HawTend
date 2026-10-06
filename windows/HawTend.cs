@@ -13,7 +13,7 @@ using System.Windows.Forms;
 
 [assembly: AssemblyTitle("HawTend")]
 [assembly: AssemblyDescription("HawTend 人生手账 · 本地桌面原型")]
-[assembly: AssemblyVersion("0.0.11.0")]
+[assembly: AssemblyVersion("0.0.12.0")]
 
 internal static class Program
 {
@@ -23,6 +23,8 @@ internal static class Program
         int port = 4173;
         bool noWindow = false;
         string browserData = null;
+        string legacyBrowserData = null;
+        int debugPort = 0;
         StaticApp server = null;
         try
         {
@@ -31,15 +33,19 @@ internal static class Program
                 if (arg == "--no-window") noWindow = true;
                 else if (arg.StartsWith("--port=")) port = int.Parse(arg.Substring(7));
                 else if (arg.StartsWith("--browser-data-dir=")) browserData = Path.GetFullPath(arg.Substring(19));
+                else if (arg.StartsWith("--legacy-browser-data-dir=")) legacyBrowserData = Path.GetFullPath(arg.Substring(26));
+                else if (arg.StartsWith("--devtools-port=")) debugPort = int.Parse(arg.Substring(16));
                 else throw new ArgumentException("未知启动参数。请直接双击 HawTend.exe。");
             }
             if (port < 1024 || port > 65535) throw new ArgumentException("端口不在有效范围内。");
             string address = "http://127.0.0.1:" + port + "/";
             if (browserData != null && port == 4173) throw new ArgumentException("独立测试配置请使用其他端口，避免更换个人手账空间。");
+            if ((debugPort != 0 || legacyBrowserData != null) && (browserData == null || port == 4173)) throw new ArgumentException("测试桥接需要独立端口和配置文件夹。");
+            if (debugPort != 0 && (debugPort < 1024 || debugPort > 65535 || debugPort == port)) throw new ArgumentException("测试调试端口无效。");
             if (!noWindow && DesktopWindows.Send(port, DesktopWindows.OpenMessage)) return 0;
             if (IsReady(address))
             {
-                if (!noWindow) OpenWindow(address, browserData);
+                if (!noWindow) throw new IOException("此地址已有本机预览服务。请先退出此前的预览，再打开桌面版。");
                 return 0;
             }
             using (Mutex mutex = new Mutex(false, "Local\\HawTend.Desktop." + port))
@@ -51,7 +57,7 @@ internal static class Program
                 {
                     for (int attempt = 0; attempt < 30; attempt++)
                     {
-                        if (IsReady(address)) { if (!noWindow && !DesktopWindows.Send(port, DesktopWindows.OpenMessage)) OpenWindow(address, browserData); return 0; }
+                        if (IsReady(address)) { if (!noWindow && !DesktopWindows.Send(port, DesktopWindows.OpenMessage)) throw new IOException("本机预览已运行，请先退出预览。"); return 0; }
                         Thread.Sleep(100);
                     }
                     throw new IOException("HawTend 已在启动，请稍后重新打开。");
@@ -61,10 +67,11 @@ internal static class Program
                     WindowRegistry windows = new WindowRegistry();
                     server = new StaticApp(port, windows);
                     server.Start();
+                    DesktopWindows.SetProcessDPIAware();
                     Application.EnableVisualStyles();
                     Application.SetCompatibleTextRenderingDefault(false);
-                    DesktopWindows.SetProcessDPIAware();
-                    using (DesktopContext context = new DesktopContext(address, port, !noWindow, browserData, windows))
+                    string dataFolder = browserData ?? Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "HawTend\\WebView2");
+                    using (DesktopContext context = new DesktopContext(address, port, !noWindow, dataFolder, legacyBrowserData, debugPort, windows))
                     {
                         if (!noWindow) context.OpenOrFocus();
                         Application.Run(context);
@@ -131,7 +138,9 @@ internal sealed class DesktopContext : ApplicationContext
     private NotifyIcon tray;
     private Icon icon;
     private ContextMenuStrip menu;
-    private readonly string address, browserData;
+    private readonly string address, browserData, legacyBrowserData;
+    private readonly int debugPort;
+    private DesktopShell shell;
     private readonly string ownerProperty = "HawTend.Owner." + Guid.NewGuid().ToString("N");
     private readonly WindowRegistry windows;
     private ControllerWindow controller;
@@ -139,9 +148,9 @@ internal sealed class DesktopContext : ApplicationContext
     private bool closing, hasOpened, unclaimed;
     private DateTime closeDeadline;
 
-    internal DesktopContext(string address, int port, bool showTray, string browserData, WindowRegistry windows)
+    internal DesktopContext(string address, int port, bool showTray, string browserData, string legacyBrowserData, int debugPort, WindowRegistry windows)
     {
-        this.address = address; this.browserData = browserData; this.windows = windows;
+        this.address = address; this.browserData = browserData; this.legacyBrowserData = legacyBrowserData; this.debugPort = debugPort; this.windows = windows;
         controller = new ControllerWindow(port) { OpenApp = OpenOrFocus, ExitApp = RequestExit };
         timer = new System.Windows.Forms.Timer { Interval = 250 };
         timer.Tick += delegate { PollWindows(); }; timer.Start();
@@ -158,6 +167,15 @@ internal sealed class DesktopContext : ApplicationContext
     internal void OpenOrFocus()
     {
         if (closing) return;
+        if (shell != null && !shell.IsDisposed) { DesktopWindows.Focus(shell.Handle); return; }
+        shell = new DesktopShell(address, browserData, debugPort, OpenLegacy);
+        shell.FormClosed += delegate { RequestExit(); };
+        hasOpened = true; shell.Show();
+    }
+
+    private void OpenLegacy()
+    {
+        if (closing) return;
         foreach (WindowTicket ticket in windows.Tickets.Values)
         {
             if (Owned(ticket)) { DesktopWindows.Focus(ticket.Handle); return; }
@@ -165,8 +183,8 @@ internal sealed class DesktopContext : ApplicationContext
         }
         string nonce = Guid.NewGuid().ToString("N");
         WindowTicket next = new WindowTicket { Nonce = nonce };
-        windows.Tickets[nonce] = next; hasOpened = true;
-        if (!Program.OpenWindow(address + "#hawtend-window=" + nonce, browserData))
+        windows.Tickets[nonce] = next;
+        if (!Program.OpenWindow(address + "?legacy-transfer=1#hawtend-window=" + nonce, legacyBrowserData))
         { next.Failed = true; unclaimed = true; if (menu != null) menu.Items[1].Text = "停止本机服务"; }
     }
 
@@ -183,7 +201,7 @@ internal sealed class DesktopContext : ApplicationContext
 
     private void PollWindows()
     {
-        int active = 0;
+        int active = shell != null && !shell.IsDisposed ? 1 : 0;
         foreach (WindowTicket ticket in windows.Tickets.Values)
         {
             if (!ticket.Registered && !ticket.Failed)
@@ -218,7 +236,9 @@ internal sealed class DesktopContext : ApplicationContext
 
     internal void RequestExit()
     {
+        if (closing) return;
         closing = true; closeDeadline = DateTime.UtcNow.AddSeconds(10);
+        if (shell != null && !shell.IsDisposed) shell.Close();
         foreach (WindowTicket ticket in windows.Tickets.Values)
             if (Owned(ticket)) DesktopWindows.PostMessage(ticket.Handle, 0x10, IntPtr.Zero, IntPtr.Zero);
         PollWindows();
@@ -229,6 +249,7 @@ internal sealed class DesktopContext : ApplicationContext
         if (disposing)
         {
             if (timer != null) { timer.Stop(); timer.Dispose(); }
+            if (shell != null) shell.Dispose();
             foreach (WindowTicket ticket in windows.Tickets.Values)
                 if (Owned(ticket)) DesktopWindows.RemoveProp(ticket.Handle, ownerProperty);
             if (controller != null) controller.Dispose();

@@ -6,9 +6,9 @@
 
 HawTend 是一本把**值得记住的日子、未来想做的事和为它们准备的资金**放在一起的个人手账。温暖的纸色、手绘山楂和可拖动的时间轴，让记录与规划更接近日常生活。
 
-**当前版本：v0.0.11，本地原型。** 可以在 Windows 上直接运行，也可以从源码在浏览器中使用。个人记录保存在本机；账号登录、云同步和 iPhone 在线安装仍在开发计划中。
+**当前版本：v0.0.12，本地原型。** 可以在 Windows 上直接运行，也可以从源码在浏览器中使用。个人记录保存在本机；账号登录、云同步和 iPhone 在线安装仍在开发计划中。
 
-[下载 Windows 版](https://github.com/Flying-Angels/HawTend/releases/tag/v0.0.11) · [从源码运行](#从源码运行) · [数据保存说明](#数据保存说明) · [后续计划](#后续计划)
+[下载 Windows 版](https://github.com/Flying-Angels/HawTend/releases/tag/v0.0.12) · [从源码运行](#从源码运行) · [数据保存说明](#数据保存说明) · [后续计划](#后续计划)
 
 ## 现在可以做什么
 
@@ -24,7 +24,7 @@ HawTend 是一本把**值得记住的日子、未来想做的事和为它们准�
 <details>
 <summary>展开界面预览（虚构样例，不是个人数据）</summary>
 
-![HawTend 桌面端样例手账](docs/images/journal-preview.png)
+![HawTend 独立 Windows 窗口，虚构样例](docs/images/windows-native-preview.png)
 
 ![自定义资金账户与资产汇总](docs/images/funds-accounts-preview.png)
 
@@ -34,16 +34,18 @@ HawTend 是一本把**值得记住的日子、未来想做的事和为它们准�
 
 日常使用推荐这个方式，**不需要安装 Node.js、下载源码或部署服务器**。
 
-运行环境：Windows 10 / 11、.NET Framework 4.8，以及 Microsoft Edge。启动器会用 Edge 打开独立窗口；找不到 Edge 时使用系统默认浏览器。
+运行环境：**Windows 10 / 11 x64、.NET Framework 4.8、免费的 WebView2 Evergreen Runtime**。现在使用 HawTend 自己的窗口，正常启动不会打开 Edge 浏览器。多数 Windows 电脑已有运行时；缺少时应用会给出[微软官方下载入口](https://developer.microsoft.com/microsoft-edge/webview2/)。
 
-1. 打开 [v0.0.11 下载页](https://github.com/Flying-Angels/HawTend/releases/tag/v0.0.11)，在 **Assets** 中下载 **`HawTend-v0.0.11-windows.zip`**。`Source code` 是源码，日常使用不需要下载它。
+1. 打开 [v0.0.12 下载页](https://github.com/Flying-Angels/HawTend/releases/tag/v0.0.12)，在 **Assets** 中下载 **`HawTend-v0.0.12-windows.zip`**。`Source code` 是源码，日常使用不需要下载它。
 2. 将 ZIP **完整解压**到一个固定文件夹，例如 `D:\Apps\HawTend`。
 3. 双击解压后的 **`HawTend.exe`**，开始使用。首次打开是空白手账；点击“看看样例”可以先试用功能。
 4. 想从桌面打开：右键 `HawTend.exe` →“发送到”→“桌面快捷方式”。Windows 11 可先点击“显示更多选项”。若要指定透明图标，在快捷方式“属性 → 更改图标”中选择同目录的 `HawTend-transparent.ico`。
 
-压缩包内包含程序、透明图标和使用说明。EXE 内置全部页面资源，运行时只在本机提供页面，地址固定为 `http://127.0.0.1:4173/`。关闭独立应用窗口会退出程序；右下角托盘也可以打开已有窗口或关闭应用并退出。托盘使用适合小尺寸的透明图标。默认浏览器回退或无法验证窗口归属时，菜单会显示“停止本机服务”，浏览器页面需自己关闭。
+压缩包内包含程序、三个 WebView2 SDK DLL、透明图标、许可与使用说明。**请保留 DLL 与 EXE 在同一文件夹，完整解压并完整更新。** 页面资源内置，运行时只在本机提供页面，地址固定为 `http://127.0.0.1:4173/`。关闭窗口或从托盘退出会停止程序，重复启动回到已有窗口。
 
-**更新方法：**先在“手账设置”中导出记录，关闭手账窗口，再从托盘退出 HawTend。解压新版并替换程序后重新打开；已有快捷方式请保持指向新版文件。使用同一浏览器、同一配置文件和同一地址，才能继续读取原手账。
+**更新方法：**先导出记录并退出旧版，再完整解压新版。v0.0.12 换成独立窗口，第一次可点击“接续旧手账”：打开旧页面导出 JSON，回到新窗口选文件，确认后接续。旧浏览器记录保留，已有内容的手账不允许从此入口覆盖。也可从空白开始，之后在没有个人记录时从设置进入接续。
+
+接续完成后，桌面记录保存在 `%LOCALAPPDATA%\HawTend\WebView2`，以后升级继续使用这个位置。请勿清理它。[独立窗口与接续说明](docs/22-独立Windows窗口与旧手账接续.md)提供完整步骤。
 
 桌面版目前未做数字签名和自动更新。打包与页面资源已在开发电脑核对，其他电脑的运行情况仍需反馈。
 
@@ -95,22 +97,26 @@ Windows 安装完依赖后，也可以双击项目根目录的 **`启动HawTend.
 powershell.exe -NoProfile -ExecutionPolicy Bypass -File scripts/build-windows.ps1
 ```
 
-脚本会构建页面，并使用本机 .NET Framework 编译器生成：
+脚本会构建页面、下载并校验固定版本的 WebView2 SDK，再使用本机 .NET Framework 编译器生成：
 
 ```text
 releases/windows/HawTend.exe
 releases/windows/HawTend-transparent.ico
+releases/windows/Microsoft.Web.WebView2.Core.dll
+releases/windows/Microsoft.Web.WebView2.WinForms.dll
+releases/windows/WebView2Loader.dll
+releases/windows/WebView2-SDK-LICENSE.txt
 ```
 
 编译器缺失时需要先安装 .NET Framework 开发环境；直接使用下载页的 Windows 包不需要编译器。生成的程序不依赖项目源码或 Node.js。`releases/`、`dist/` 和依赖目录不会提交到 Git。
 
 ## 数据保存说明
 
-- **个人手账**保存在当前浏览器、当前网站地址的 IndexedDB 中。首次使用没有预填记录。
+- **桌面个人手账**保存在当前 Windows 用户的独立 WebView2 文件夹里；**浏览器版**保存在当前浏览器、当前网站地址的 IndexedDB 中。首次使用没有预填记录。
 - **“看看样例”**使用虚构内容，修改只用于当次体验，不会写入个人手账。
 - 更换设备、浏览器、浏览器配置文件或地址，会看到另一份本地手账。例如开发模式的 `5173` 端口与正式预览的 `4173` 端口分别保存数据。
 - 复制 EXE、更新源码或公开 GitHub 仓库，都不会把浏览器中的手账上传或带到另一台电脑。
-- 可以在“手账设置”导出 JSON，保留记录副本。**导入恢复尚未实现**；清理浏览器网站数据会删除本地手账。
+- 可以在“手账设置”导出 JSON，保留记录副本。空白桌面手账可手动接续导出的 JSON；不会覆盖已有内容。浏览器版尚无导入入口。清理对应浏览器网站数据或桌面记录文件夹会删除本地手账。
 
 “今天”按设备本地日期显示，跨午夜及回到页面时自动更新。新记录默认使用当天日期，时间轴按真实日期定位圆点。浏览时间轴不会修改记录日期。
 
@@ -156,7 +162,7 @@ releases/windows/HawTend-transparent.ico
 
 ## 开发与检查
 
-客户端使用 React、TypeScript 和 Vite；本地数据使用 IndexedDB。Windows 启动器是 C# 编写的轻量程序。`src/cloud/` 与 `supabase/` 中已有同步适配器、迁移和权限测试草案，尚未接入实际应用。
+客户端使用 React、TypeScript 和 Vite；本地数据使用 IndexedDB。Windows 桌面窗口由 C# / WinForms 提供，通过 WebView2 显示共用页面。`src/cloud/` 与 `supabase/` 中已有同步适配器、迁移和权限测试草案，尚未接入实际应用。
 
 ```sh
 npm run dev            # 开发模式，终端显示访问地址

@@ -23,6 +23,22 @@ try {
     $buildDir = Join-Path $projectDir 'output/windows-build'
     $releaseDir = Join-Path $projectDir 'releases/windows'
     New-Item -ItemType Directory -Path $buildDir, $releaseDir -Force | Out-Null
+    # Pin the free Microsoft SDK independently of the automatically updated runtime.
+    $sdkVersion = '1.0.4129.50'
+    $sdkDir = Join-Path $projectDir "output/windows-sdk/$sdkVersion"
+    $sdkArchive = Join-Path $sdkDir 'sdk.zip'
+    $sdkHash = 'D3934F482D484B89FB4825DF720C710664E1143A1E90F7B3A60794EF33F473D2'
+    New-Item -ItemType Directory -Path $sdkDir -Force | Out-Null
+    if (-not (Test-Path -LiteralPath $sdkArchive)) {
+        [Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12
+        Invoke-WebRequest -UseBasicParsing -Uri "https://api.nuget.org/v3-flatcontainer/microsoft.web.webview2/$sdkVersion/microsoft.web.webview2.$sdkVersion.nupkg" -OutFile $sdkArchive
+    }
+    if ((Get-FileHash -LiteralPath $sdkArchive -Algorithm SHA256).Hash -ne $sdkHash) { throw 'WebView2 SDK checksum mismatch.' }
+    $sdkPackage = Join-Path $sdkDir 'package'
+    if (-not (Test-Path -LiteralPath $sdkPackage)) { Expand-Archive -LiteralPath $sdkArchive -DestinationPath $sdkPackage }
+    $sdkCore = Join-Path $sdkPackage 'lib/net462/Microsoft.Web.WebView2.Core.dll'
+    $sdkForms = Join-Path $sdkPackage 'lib/net462/Microsoft.Web.WebView2.WinForms.dll'
+    $sdkLoader = Join-Path $sdkPackage 'runtimes/win-x64/native/WebView2Loader.dll'
     Add-Type -AssemblyName System.IO.Compression.FileSystem
     $zipPath = Join-Path $buildDir 'app.zip'
     # The only replaceable files here are this script's explicit output artifacts.
@@ -70,10 +86,12 @@ try {
     } finally { $trayWriter.Dispose() }
 
     $exePath = Join-Path $releaseDir $ExecutableName
-    & $compiler /nologo /target:winexe /platform:anycpu /optimize+ /codepage:65001 "/win32icon:$iconPath" "/resource:$iconPath,HawTend.Icon" "/resource:$trayIconPath,HawTend.TrayIcon" "/resource:$zipPath,HawTend.Assets" "/out:$exePath" /reference:System.Windows.Forms.dll /reference:System.Drawing.dll /reference:System.IO.Compression.dll "/reference:$frameworkDir/WPF/UIAutomationClient.dll" "/reference:$frameworkDir/WPF/UIAutomationTypes.dll" (Join-Path $projectDir 'windows\HawTend.cs') (Join-Path $projectDir 'windows\DesktopWindows.cs')
+    & $compiler /nologo /target:winexe /platform:x64 /optimize+ /codepage:65001 "/win32icon:$iconPath" "/resource:$iconPath,HawTend.Icon" "/resource:$trayIconPath,HawTend.TrayIcon" "/resource:$projectDir/public/brand/windows-icon-32.png,HawTend.CaptionMark" "/resource:$zipPath,HawTend.Assets" "/out:$exePath" /reference:System.Windows.Forms.dll /reference:System.Drawing.dll /reference:System.IO.Compression.dll /reference:System.Web.Extensions.dll "/reference:$sdkCore" "/reference:$sdkForms" "/reference:$frameworkDir/WPF/UIAutomationClient.dll" "/reference:$frameworkDir/WPF/UIAutomationTypes.dll" (Join-Path $projectDir 'windows\HawTend.cs') (Join-Path $projectDir 'windows\DesktopWindows.cs') (Join-Path $projectDir 'windows\DesktopShell.cs')
     if ($LASTEXITCODE -ne 0) { throw 'Windows build failed.' }
     # A separate ICO lets shortcuts use the new artwork without reusing cached EXE icons.
     Copy-Item -LiteralPath $iconPath -Destination (Join-Path $releaseDir 'HawTend-transparent.ico') -Force
+    foreach ($dll in @($sdkCore, $sdkForms, $sdkLoader)) { Copy-Item -LiteralPath $dll -Destination $releaseDir -Force }
+    Copy-Item -LiteralPath (Join-Path $projectDir 'public/licenses/WebView2-SDK-LICENSE.txt') -Destination $releaseDir -Force
     Get-Item -LiteralPath $exePath | Select-Object FullName,Length
     Get-FileHash -LiteralPath $exePath -Algorithm SHA256
 } finally { Pop-Location }

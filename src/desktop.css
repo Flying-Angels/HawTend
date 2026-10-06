@@ -1,0 +1,12 @@
+.desktop-continuity { display: flex; align-items: center; gap: 18px; border: 1px solid var(--line); background: var(--surface); border-radius: 12px; padding: 22px 26px; margin: 0 0 24px; color: var(--accent); }
+.desktop-continuity > svg { flex-shrink: 0; }
+.desktop-continuity h2 { font: 20px/1.5 var(--serif); color: var(--ink); }
+.desktop-continuity p { font-size: 12px; line-height: 1.8; color: var(--muted); margin-top: 5px; }
+.continuity-copy { flex: 1; }
+.continuity-actions { display: flex; align-items: center; gap: 16px; flex-wrap: wrap; }
+.desktop-continuity.expanded { align-items: flex-start; }
+.continuity-steps > p { margin-top: 20px; margin-bottom: 8px; }
+.continuity-confirm { margin-top: 20px; padding: 16px; background: var(--hero); border-radius: 8px; }
+.continuity-confirm .primary-button { margin-top: 14px; }
+.continuity-steps .form-error { color: #a14b38; }
+@media (max-width: 900px) { .desktop-continuity { flex-wrap: wrap; padding: 18px; } .continuity-actions { flex-basis: 100%; padding-left: 43px; } }
