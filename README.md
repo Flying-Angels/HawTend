@@ -6,9 +6,9 @@
 
 HawTend 是一本把**值得记住的日子、未来想做的事和为它们准备的资金**放在一起的个人手账。温暖的纸色、手绘山楂和可拖动的时间轴，让记录与规划更接近日常生活。
 
-**当前版本：v0.0.6，本地原型。** 可以在 Windows 上直接运行，也可以从源码在浏览器中使用。个人记录保存在本机；账号登录、云同步和 iPhone 在线安装仍在开发计划中。
+**当前版本：v0.0.7，本地原型。** 可以在 Windows 上直接运行，也可以从源码在浏览器中使用。个人记录保存在本机；账号登录、云同步和 iPhone 在线安装仍在开发计划中。
 
-[下载 Windows 版](https://github.com/Flying-Angels/HawTend/releases/tag/v0.0.6) · [从源码运行](#从源码运行) · [数据保存说明](#数据保存说明) · [后续计划](#后续计划)
+[下载 Windows 版](https://github.com/Flying-Angels/HawTend/releases/tag/v0.0.7) · [从源码运行](#从源码运行) · [数据保存说明](#数据保存说明) · [后续计划](#后续计划)
 
 ## 现在可以做什么
 
@@ -34,7 +34,7 @@ HawTend 是一本把**值得记住的日子、未来想做的事和为它们准�
 
 运行环境：Windows 10 / 11、.NET Framework 4.8，以及 Microsoft Edge。启动器会用 Edge 打开独立窗口；找不到 Edge 时使用系统默认浏览器。
 
-1. 打开 [v0.0.6 下载页](https://github.com/Flying-Angels/HawTend/releases/tag/v0.0.6)，在 **Assets** 中下载 **`HawTend-v0.0.6-windows.zip`**。`Source code` 是源码，日常使用不需要下载它。
+1. 打开 [v0.0.7 下载页](https://github.com/Flying-Angels/HawTend/releases/tag/v0.0.7)，在 **Assets** 中下载 **`HawTend-v0.0.7-windows.zip`**。`Source code` 是源码，日常使用不需要下载它。
 2. 将 ZIP **完整解压**到一个固定文件夹，例如 `D:\Apps\HawTend`。
 3. 双击解压后的 **`HawTend.exe`**，开始使用。首次打开是空白手账；点击“看看样例”可以先试用功能。
 4. 想从桌面打开：右键 `HawTend.exe` →“发送到”→“桌面快捷方式”。Windows 11 可先点击“显示更多选项”。若要指定透明图标，在快捷方式“属性 → 更改图标”中选择同目录的 `HawTend-transparent.ico`。

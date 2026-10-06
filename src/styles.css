@@ -189,9 +189,17 @@ input[type='range'] { accent-color: var(--accent); height: 24px; cursor: pointer
 .expanded .today-marker { top: 0; bottom: 9px; }
 .expanded .today-marker > span { top: 174px; z-index: 1; }
 .year-mark { position: absolute; top: 220px; font-size: 12px; font-family: var(--number); color: var(--muted); transform: translateX(-50%); }
-.timeline-empty { position: absolute; width: 320px; left: 180px; top: 130px; text-align: center; color: var(--muted); background: var(--surface); padding: 24px; }
-.timeline-empty p { margin: 15px 0 9px; font-family: var(--serif); font-size: 18px; }
-.timeline-empty > span { font-size: 11px; }
+.timeline-empty { display: flex; align-items: center; justify-content: center; gap: 16px; max-width: 520px; margin: 20px auto 12px; padding: 20px 24px; border-radius: 9px; color: var(--muted); background: var(--hero); }
+.timeline-empty > svg { flex-shrink: 0; color: var(--accent); }
+.timeline-empty > div { min-width: 0; }
+.timeline-empty p { margin: 0 0 8px; font: 18px/1.5 var(--serif); }
+.timeline-empty span { font-size: 11px; line-height: 1.8; }
+.timeline-section.is-empty .timeline-canvas { height: 112px; }
+.timeline-section.is-empty .axis-line { top: 64px; }
+.timeline-section.is-empty .axis-origin, .timeline-section.is-empty .axis-future, .timeline-section.is-empty .year-mark { top: 82px; }
+.timeline-section.is-empty .today-marker { top: 0; bottom: 8px; }
+.timeline-section.is-empty .today-marker > span { top: 26px; }
+.timeline-section.is-empty .today-marker > i { top: 61px; }
 .timeline-bottom-note { display: flex; gap: 17px; align-items: center; margin: 28px 0; padding: 23px 25px; background: var(--hero); border-radius: 9px; color: var(--accent); }
 .timeline-bottom-note > div { flex: 1; }
 .timeline-bottom-note strong { font: 16px var(--serif); }
@@ -432,6 +440,8 @@ input[type='range'] { accent-color: var(--accent); height: 24px; cursor: pointer
   .eyebrow { font-size: 8px; letter-spacing: 1.6px; }
   .section-heading .text-button { font-size: 9px; gap: 4px; }
   .timeline-section { padding: 20px 16px 14px; margin: 0 -4px; }
+  .timeline-empty { gap: 12px; padding: 18px 16px; margin-top: 16px; }
+  .timeline-empty p { font-size: 16px; }
   .filter-group { gap: 1px; }
   .filter-chip { font-size: 11px; padding: 7px 10px; min-height: 44px; }
   .timeline-caption { font-size: 8px; gap: 5px; }

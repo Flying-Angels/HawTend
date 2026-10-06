@@ -13,7 +13,7 @@ using System.Windows.Forms;
 
 [assembly: AssemblyTitle("HawTend")]
 [assembly: AssemblyDescription("HawTend 人生手账 · 本地桌面原型")]
-[assembly: AssemblyVersion("0.0.6.0")]
+[assembly: AssemblyVersion("0.0.7.0")]
 
 internal static class Program
 {
