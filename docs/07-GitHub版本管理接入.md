@@ -1,7 +1,7 @@
 # HawTend：GitHub 版本管理接入
 
-记录日期：2026-10-05\
-当前状态：GitHub 插件与命令行账号连接成功；已建立 hawtend 私有远程仓库，代码、文档和品牌资产已推送。
+初始记录日期：2026-10-05；更新日期：2026-10-06。\
+当前状态：按用户要求使用 **Flying-Angels/HawTend** 大小写名称并将仓库改为 **Public**，保留原仓库和提交历史。README 已改为产品介绍与实际安装指南，Windows 包通过 GitHub Release 下载。下文保留首次私有仓库建立时的过程记录。
 
 ## 已确认与已准备
 
@@ -16,20 +16,20 @@ GitHub 官方网页授权成功，`gh auth status` 核实账号 Flying-Angels，
 | 项目 | 准备方案 |
 | --- | --- |
 | 归属 | Flying-Angels |
-| 名称 | 用户已确认为 HawTend；仓库名称 `hawtend` |
-| 可见性 | 私有；应用代码和需求可保存，个人账单、报告与密钥排除 |
+| 名称 | `HawTend`，大小写与产品名一致 |
+| 可见性 | 公开；应用代码和需求可查看，个人账单、报告与密钥排除 |
 | 远程别名 | `origin` |
-| 远程地址 | `https://github.com/Flying-Angels/hawtend.git` |
+| 远程地址 | `https://github.com/Flying-Angels/HawTend.git` |
 | 默认分支 | `main`，已推送并核实 |
 | 本地开发分支 | `codex/phase0-prototype` |
 | 首个原型提交 | `b7ad6e1`；之后按小步提交持续同步 |
-| 云端 | 私有仓库已创建，默认分支与开发分支均已上传 |
+| 云端 | 公开仓库，默认分支与开发分支均已上传 |
 
 已确认终端账号，检查同名仓库不存在，再建立私有仓库并配置 `origin`。已推送默认分支 `main` 与开发分支 `codex/phase0-prototype`，通过 `git ls-remote` 核实首批上传对应品牌提交 `9d7840b`，GitHub 返回 `isPrivate: true`。首次上传包括需求文档、原型代码、依赖锁文件、品牌资产、云端迁移与验证代码；云端准备文件仍保留“未完成实测”的说明。本次状态说明作为后续小步提交同步。
 
 `.gitignore` 排除 `node_modules/`、`dist/`、`output/`、`.env*`（仅公开配置模板 `.env.example` 例外）、`private-data/` 和日志。浏览器手账数据存在 IndexedDB，不在代码仓库中。
 
-版本管理与应用数据同步用途不同：GitHub 保存代码和文档历史；Windows 与 iPhone 的个人数据仍由 Supabase 同步。把代码推送到 GitHub，不等于手机已经可以访问 App，也不等于手账已经云端备份。
+版本管理与应用数据同步用途不同：GitHub 保存代码和文档历史；Windows 与 iPhone 的个人数据计划由 Supabase 同步，但尚未接入。把代码推送到 GitHub，不等于手机已经可以访问 App，也不等于手账已经云端备份。
 
 后续开发由助手小步提交、检查构建后推送；HTTPS 应用托管和真实双端同步另行完成。GitHub 账号登录授权已完成，不需要再次登录。
 

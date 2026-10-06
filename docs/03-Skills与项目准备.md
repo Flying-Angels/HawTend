@@ -39,7 +39,7 @@
 
 | 服务 | 本轮结果 | 后续动作 |
 | --- | --- | --- |
-| GitHub | 插件与 CLI 账号 Flying-Angels 连接可用，网页授权已完成；hawtend 私有仓库已创建 | `main` 与 `codex/phase0-prototype` 均已推送，见 [接入记录](07-GitHub版本管理接入.md) |
+| GitHub | 插件与 CLI 账号 Flying-Angels 连接可用，网页授权已完成；HawTend 公开仓库已建立 | `main` 与 `codex/phase0-prototype` 均已推送，安装方式见 README，变更见 [接入记录](07-GitHub版本管理接入.md) |
 | Figma | 插件已安装；身份查询返回尚未连接账号 | 需要在 Figma 中保存可编辑设计时，登录并连接账号 |
 | Supabase 云数据库 | 插件与账号已连接；用户选择 FlyingAngels；Free 与新项目 0 美元/月已核实 | 费用确认待回复；助手创建项目并配置权限，随后验证实际连接与同步 |
 | 应用托管 | 拟用 Cloudflare Pages Free，未部署 | 助手配置 HTTPS 托管，随后验证手机访问与登录回调 |
