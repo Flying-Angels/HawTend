@@ -7,6 +7,10 @@ const utc = (date: string) => new Date(`${date}T00:00:00Z`)
 
 // 原型采用参考日余额、固定年利率、实际天数/365；定期到期后默认零收益。
 export function futureValue(fund: Fund, targetDate: string): number {
+  if (fund.returnMode === 'manual') {
+    const recorded = fund.valuations?.filter(v => v.date <= targetDate).at(-1) ?? fund.valuationBase
+    return recorded?.valueCents ?? fund.principalCents
+  }
   const end = !fund.liquid && fund.maturityDate && targetDate > fund.maturityDate ? fund.maturityDate : targetDate
   const start = utc(fund.startDate)
   const endDate = utc(end)

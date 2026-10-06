@@ -1,6 +1,7 @@
 import type { Journal } from '../model'
 import { isCategoryDefinitions } from '../categories.ts'
 import { isMonthlySummaries } from '../monthly.ts'
+import { isAssetAccounts, validFundDetails } from '../assets.ts'
 
 const legacyCategories = ['life', 'growth', 'travel', 'health']
 const themes = new Set(['paper', 'forest', 'dusk'])
@@ -31,6 +32,8 @@ export function isJournal(value: unknown): value is Journal {
   if (!object(value) || value.schemaVersion !== 1 || !text(value.theme) || !themes.has(value.theme)) return false
   if (value.categories !== undefined && !isCategoryDefinitions(value.categories)) return false
   if (value.monthlySummaries !== undefined && !isMonthlySummaries(value.monthlySummaries)) return false
+  if (value.accounts !== undefined && !isAssetAccounts(value.accounts)) return false
+  const accountIds = new Set(value.accounts === undefined ? [] : value.accounts.map(a => a.id))
   const categories = new Set(value.categories === undefined ? legacyCategories : value.categories.map(c => c.id))
   return records(value.moments, row => text(row.title) && date(row.date) && text(row.category) && categories.has(row.category)
     && [1, 2, 3].includes(row.importance as number) && text(row.story) && text(row.reflection)
@@ -41,7 +44,8 @@ export function isJournal(value: unknown): value is Journal {
       && (row.newSavingRate === undefined || boundedNumber(row.newSavingRate, 30)))
     && records(value.funds, row => text(row.name) && money(row.principalCents) && boundedNumber(row.rate, 30)
       && date(row.startDate) && typeof row.liquid === 'boolean' && text(row.mode) && modes.has(row.mode)
-      && (row.liquid ? row.maturityDate === '' : date(row.maturityDate) && row.maturityDate > row.startDate))
+      && validFundDetails(row, accountIds)
+      && (row.liquid ? row.maturityDate === '' : date(row.maturityDate) && row.maturityDate > (row.returnMode === 'manual' ? (row.valuationBase as { date: string }).date : row.startDate)))
 }
 
 export function assertJournal(value: unknown): asserts value is Journal {

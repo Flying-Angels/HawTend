@@ -5,6 +5,7 @@ import './styles.css'
 import './brand.css'
 import './writing.css'
 import './monthly.css'
+import './assets.css'
 
 ReactDOM.createRoot(document.getElementById('root')!).render(<React.StrictMode><App /></React.StrictMode>)
 

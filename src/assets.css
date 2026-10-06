@@ -1,0 +1,128 @@
+.funds-page .fund-summary strong { font-size: 26px; overflow-wrap: anywhere; }
+.funds-page .fund-summary > div:first-child strong { font-size: 30px; }
+.funds-page .fund-summary > div { min-width: 0; }
+.funds-page .fund-summary > div:last-child { display: block; }
+.funds-page > .notice { margin: 0 0 25px; }
+.account-grid { display: grid; grid-template-columns: repeat(auto-fit,minmax(200px,1fr)); gap: 13px; margin: 20px 0 32px; }
+.account-card { position: relative; text-align: left; min-width: 0; padding: 20px; border: 1px solid var(--line); border-radius: 10px; background: var(--surface); display: flex; flex-direction: column; align-items: flex-start; gap: 10px; }
+.account-card > svg { position: absolute; right: 18px; top: 20px; color: var(--muted); }
+.account-card > span { max-width: calc(100% - 32px); font: 17px/1.6 var(--serif); overflow-wrap: anywhere; }
+.account-card strong { font: 23px/1.5 var(--number); overflow-wrap: anywhere; }
+.account-card small { font-size: 10px; line-height: 1.8; color: var(--muted); }
+.account-card[aria-pressed=true] { border-color: var(--accent); background: var(--hero); }
+.account-empty-hint { color: var(--muted); font-size: 12px; line-height: 1.9; margin: -14px 0 30px; }
+.asset-list { background: var(--surface); border: 1px solid var(--line); border-radius: 10px; overflow: hidden; }
+.asset-list:empty { display: none; }
+.asset-item + .asset-item { border-top: 1px solid var(--line); }
+.asset-main { display: flex; width: 100%; align-items: center; gap: 17px; padding: 24px; text-align: left; }
+.asset-main:hover { background: var(--hero); }
+.asset-copy { flex: 1; min-width: 0; }
+.asset-copy > strong { display: block; font: 16px/1.7 var(--serif); overflow-wrap: anywhere; }
+.asset-copy > span { display: block; color: var(--muted); font-size: 10px; margin-top: 6px; line-height: 1.8; }
+.asset-copy i { font-style: normal; margin: 0 7px; }
+.asset-value, .asset-return { text-align: right; flex-shrink: 0; }
+.asset-value > strong, .asset-return > strong { display: block; font: 22px/1.6 var(--number); }
+.asset-return > strong { color: var(--accent); }
+.asset-return .manual-label { font: 14px/1.9 var(--serif); }
+.asset-value > small, .asset-return > small { display: block; color: var(--muted); font-size: 9px; margin-top: 5px; line-height: 1.8; }
+.asset-return strong small { font-size: 11px; }
+.asset-main > svg { color: var(--muted); }
+.asset-update { display: flex; align-items: center; justify-content: space-between; gap: 15px; padding: 0 24px 16px 88px; color: var(--muted); font-size: 11px; line-height: 1.8; }
+.asset-update strong { font: 14px var(--number); }
+.asset-update .text-button { min-height: 40px; font-size: 11px; }
+.asset-account-manager { padding: 22px; background: var(--hero); border-radius: 10px; margin: 8px 0 23px; }
+.asset-account-manager .section-heading { margin-bottom: 10px; }
+.asset-account-manager h3 { font: 19px/1.7 var(--serif); }
+.asset-account-manager p { font-size: 11px; line-height: 1.9; color: var(--muted); }
+.asset-account-list > div { display: flex; align-items: center; gap: 12px; padding: 12px 0; border-bottom: 1px solid var(--line); }
+.asset-account-list > div > span { flex: 1; min-width: 0; }
+.asset-account-list strong { display: block; font-size: 13px; font-weight: 400; overflow-wrap: anywhere; }
+.asset-account-list small { display: block; color: var(--muted); font-size: 10px; margin-top: 5px; }
+.asset-account-list .text-button { font-size: 11px; min-height: 40px; }
+.account-suggestions { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; margin: 14px 0; }
+.account-suggestions > span { color: var(--muted); font-size: 11px; }
+.account-inline-editor { margin: 17px 0; padding: 17px; background: var(--surface); border: 1px solid var(--line); border-radius: 8px; }
+.account-inline-editor input, .account-inline-editor select, .account-field select, .history-choose select { width: 100%; padding: 11px 12px; min-height: 44px; border: 1px solid var(--line); border-radius: 6px; background: var(--surface); color: var(--ink); font-size: 13px; }
+.account-inline-actions { display: flex; justify-content: flex-end; gap: 20px; }
+.account-field-label { display: flex; align-items: center; justify-content: space-between; margin-bottom: 9px; gap: 8px; color: var(--muted); font-size: 12px; }
+.account-field-label .text-button { min-height: 20px; font-size: 10px; }
+.current-valuation { display: flex; align-items: center; justify-content: space-between; gap: 14px; padding: 20px; background: var(--hero); border-radius: 8px; margin-bottom: 18px; flex-wrap: wrap; }
+.current-valuation span, .current-valuation small { display: block; font-size: 11px; color: var(--muted); line-height: 1.8; }
+.current-valuation strong { display: block; font: 27px/1.8 var(--number); }
+.current-valuation p { width: 100%; }
+.valuation-reference { display: flex; gap: 15px; align-items: center; margin-bottom: 22px; padding: 19px; background: var(--hero); border-radius: 8px; }
+.valuation-reference strong { display: block; font: 19px/1.7 var(--serif); }
+.valuation-reference span { display: block; font-size: 11px; color: var(--muted); line-height: 1.9; }
+.valuation-method { display: flex; padding: 4px; border: 1px solid var(--line); border-radius: 8px; margin-bottom: 21px; }
+.valuation-method button { flex: 1; min-height: 44px; font-size: 12px; border-radius: 5px; }
+.valuation-method button[aria-pressed=true] { background: var(--hero); color: var(--accent); }
+.valuation-flow-toggle { margin: -3px 0 19px; font-size: 12px; min-height: 44px; }
+.valuation-flows { padding: 18px; border: 1px solid var(--line); border-radius: 8px; margin-bottom: 20px; }
+.valuation-flows p { margin-top: -4px; }
+.valuation-preview { display: grid; grid-template-columns: 1fr 1fr; gap: 15px; padding: 18px; background: var(--hero); border-radius: 8px; margin-bottom: 16px; }
+.valuation-preview span { display: block; font-size: 11px; line-height: 1.8; color: var(--muted); }
+.valuation-preview strong { display: block; font: 25px/1.8 var(--number); overflow-wrap: anywhere; }
+.valuation-editor > .fine-print, .fund-editor > .fine-print { margin: 0 0 18px; }
+.value-history { padding: 26px; background: var(--surface); border: 1px solid var(--line); border-radius: 10px; margin-top: 27px; }
+.value-history .section-heading { margin-bottom: 18px; }
+.value-history > svg { display: block; width: 100%; max-height: 225px; margin: 14px 0; }
+.value-history svg text { fill: var(--muted); font-size: 11px; }
+.history-choose { max-width: 220px; min-width: 0; color: var(--muted); font-size: 10px; }
+.history-choose select { margin-top: 5px; min-width: 0; }
+.history-summary { display: flex; align-items: center; justify-content: space-between; gap: 20px; }
+.history-summary > span { font-size: 12px; color: var(--muted); }
+.history-summary small { display: block; font-size: 10px; color: var(--muted); }
+.history-summary strong { font: 22px/1.8 var(--number); }
+.history-empty { font: 17px/2 var(--serif); color: var(--muted); margin: 24px 0; }
+.valuation-table { margin: 20px 0 14px; }
+.valuation-table > div { display: grid; grid-template-columns: 1fr 1fr 1fr 1.3fr; gap: 13px; padding: 13px 0; border-bottom: 1px solid var(--line); font: 14px/1.8 var(--number); }
+.valuation-table .valuation-table-header { color: var(--muted); font: 10px/1.8 sans-serif; }
+.valuation-table span { min-width: 0; overflow-wrap: anywhere; }
+.valuation-table small { display: block; color: var(--muted); font: 10px/1.8 sans-serif; overflow-wrap: anywhere; }
+.valuation-base { color: var(--muted); }
+.manual-forecast-note { display: flex; gap: 15px; align-items: flex-start; margin-top: 26px; padding: 24px; border: 1px solid var(--line); border-radius: 10px; background: var(--surface); }
+.manual-forecast-note strong { font: 18px/1.8 var(--serif); }
+.manual-forecast-note p { font-size: 11px; line-height: 1.9; color: var(--muted); margin-top: 7px; }
+@media(max-width:760px) {
+  .funds-page .fund-summary { grid-template-columns: minmax(0,1fr); padding: 9px 20px; gap: 0; }
+  .funds-page .fund-summary > div { grid-column: auto; padding: 17px 0; border: 0; border-bottom: 1px solid var(--line); }
+  .funds-page .fund-summary > div:last-child { border: 0; }
+  .funds-page .fund-summary strong, .funds-page .fund-summary > div:first-child strong { font-size: 27px; }
+  .account-grid { grid-template-columns: repeat(2,minmax(0,1fr)); gap: 10px; }
+  .account-card { padding: 15px; gap: 8px; }
+  .account-card > svg { display: none; }
+  .account-card > span { max-width: 100%; font-size: 15px; }
+  .account-card strong { font-size: 18px; }
+  .account-card small { font-size: 9px; }
+  .asset-main { display: grid; grid-template-columns: 40px minmax(0,1fr) 12px; gap: 10px; padding: 18px; }
+  .asset-main .fund-icon { width: 36px; height: 39px; grid-column: 1; grid-row: 1; }
+  .asset-copy { grid-column: 2; grid-row: 1; }
+  .asset-copy > strong { font-size: 17px; }
+  .asset-main > svg { grid-column: 3; grid-row: 1; }
+  .asset-value { grid-column: 2/4; grid-row: 2; text-align: left; }
+  .asset-value > strong { font-size: 24px; overflow-wrap: anywhere; }
+  .asset-return { grid-column: 2/4; grid-row: 3; display: flex; text-align: left; align-items: center; gap: 10px; }
+  .asset-return > strong { font-size: 17px; }
+  .asset-return .manual-label { font-size: 13px; }
+  .asset-return > small { margin: 0; }
+  .asset-update { padding: 0 18px 12px; gap: 8px; flex-wrap: wrap; }
+  .asset-update .text-button { min-height: 44px; margin-left: auto; }
+  .asset-account-manager { padding: 17px; }
+  .asset-account-manager .section-heading { flex-wrap: wrap; }
+  .asset-account-list > div { gap: 8px; }
+  .asset-account-list .text-button { min-height: 44px; }
+  .account-inline-editor { padding: 14px; }
+  .account-inline-editor .form-grid { grid-template-columns: 1fr; gap: 0; }
+  .value-history { padding: 20px 17px; }
+  .value-history .section-heading { flex-wrap: wrap; }
+  .history-choose { width: 100%; max-width: none; }
+  .history-summary { flex-wrap: wrap; gap: 10px; }
+  .valuation-table > div { grid-template-columns: 1fr 1fr; gap: 8px 14px; }
+  .valuation-table .valuation-table-header { display: none; }
+  .valuation-table [role=cell]:nth-child(3)::before { content: '期间盈亏 '; font: 10px sans-serif; color: var(--muted); }
+  .valuation-table [role=cell]:nth-child(4)::before { content: '净投入 / 分红 '; font: 10px sans-serif; color: var(--muted); }
+  .valuation-preview { grid-template-columns: 1fr; }
+  .valuation-preview strong { font-size: 25px; }
+  .manual-forecast-note { padding: 20px; }
+  .manual-forecast-note > svg { flex-shrink: 0; }
+}

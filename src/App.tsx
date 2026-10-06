@@ -1,8 +1,8 @@
 import { useCallback, useEffect, useId, useLayoutEffect, useRef, useState } from 'react'
 import type { CSSProperties, FormEvent, ReactNode } from 'react'
 import { BrandMark, Icon, Landscape } from './Icons'
-import { emptyJournal, importanceLabels, seedJournal } from './model'
-import type { Category, CategoryDefinition, Fund, Goal, Importance, Journal, Moment, MonthlySummary } from './model'
+import { emptyJournal, importanceLabels } from './model'
+import type { Category, CategoryDefinition, AssetAccount, Fund, Goal, Importance, Journal, Moment, MonthlySummary } from './model'
 import { CategoryField, CategoryManager, CategoryProvider, useCategories, useCategory } from './CategoryManager'
 import { categoryAppearance, isCategoryDefinitions, journalCategories, withCategories } from './categories'
 import { cents, exactYuan, futureValue, monthlySaving, monthsUntil, yuan } from './finance'
@@ -15,11 +15,15 @@ import { RichText } from './RichText'
 import { RichTextEditor } from './RichTextEditor'
 import { MonthlyLedger } from './MonthlyLedger'
 import { previousMonth } from './monthly'
+import { FundsPage } from './FundsPage'
+import { assetSample } from './asset-demo'
+import { FundEditor, ValuationEditor } from './FundEditor'
+import { availableForPlanning, isAssetAccounts, manualValue, planningRate } from './assets'
 
 const dateLabel = (date: string) => date.replaceAll('-', '.')
 const navItems = [{ id: 'home', label: '我的手账', short: '手账', icon: 'home' }, { id: 'timeline', label: '人生时间轴', short: '时间轴', icon: 'timeline' }, { id: 'goals', label: '心愿与目标', short: '心愿', icon: 'flag' }, { id: 'funds', label: '资金安排', short: '资金', icon: 'wallet' }] as const
 type Page = typeof navItems[number]['id']
-type Panel = { type: 'moment'; item: Moment; fresh?: boolean } | { type: 'goal'; item: Goal; fresh?: boolean } | { type: 'fund'; item: Fund; fresh?: boolean } | { type: 'settings' } | { type: 'new' }
+type Panel = { type: 'moment'; item: Moment; fresh?: boolean } | { type: 'goal'; item: Goal; fresh?: boolean } | { type: 'fund'; item: Fund; fresh?: boolean } | { type: 'valuation'; item: Fund } | { type: 'settings' } | { type: 'new' }
   | { type: 'cluster'; items: { kind: 'moment' | 'goal'; item: Moment | Goal }[] }
 type Status = 'loading' | 'saved' | 'saving' | 'failed'
 
@@ -161,12 +165,14 @@ function Timeline({ journal, compact = false, open }: { journal: Journal; compac
 function FinanceCurve({ funds }: { funds: Fund[] }) {
   const today = useToday()
   if (!funds.length) return <div className="blank-card"><Icon name="sprout" size={32} /><h2>先放好你的第一笔积蓄</h2><p>添加资金后，这里会画出它慢慢生长的轨迹。</p></div>
+  const fixed = funds.filter(f => !manualValue(f))
+  if (!fixed.length) return <div className="manual-forecast-note"><Icon name="leaf" size={24} /><div><strong>市值由你更新，未来先留白。</strong><p>这些资产采用手动记录，不套用固定年化，也不把当前市值画成未来十年的收益预测。</p></div></div>
   const dates = Array.from({ length: 11 }, (_, i) => yearsAfter(today, i))
-  const balances = dates.map(d => funds.reduce((sum, f) => sum + futureValue(f, d), 0))
-  const available = dates.map(d => funds.filter(f => f.liquid || (f.maturityDate && f.maturityDate <= d)).reduce((sum, f) => sum + futureValue(f, d), 0))
+  const balances = dates.map(d => fixed.reduce((sum, f) => sum + futureValue(f, d), 0))
+  const available = dates.map(d => fixed.filter(f => f.liquid || (f.maturityDate && f.maturityDate <= d)).reduce((sum, f) => sum + futureValue(f, d), 0))
   const max = Math.max(1, ...balances) * 1.1
   const points = (values: number[]) => values.map((v, i) => `${50 + i * 66},${168 - v / max * 136}`).join(' ')
-  return <div className="finance-curve"><div><h3>让积蓄陪你走得更远</h3><p>独立的十年余额预测 · 未纳入目标支出与新增储蓄</p></div><svg viewBox="0 0 760 206" role="img" aria-label={`${today.slice(0, 4)}至${dates[10].slice(0, 4)}年的预测总资产与可用余额曲线`}><path d="M50 30V168H710" fill="none" stroke="var(--line)" />{[0, 5, 10].map((y, i) => <text key={y} x={50 + i * 330} y={193}>{dates[y].slice(0, 4)}</text>)}<text x="50" y="18">余额 / 元</text><text x="600" y="18">¥{yuan(balances[10])}</text><polyline points={points(balances)} fill="none" stroke="var(--accent)" strokeWidth="3" strokeDasharray="7 5" /><polyline points={points(available)} fill="none" stroke="#b48352" strokeWidth="2.5" strokeDasharray="3 4" /></svg><div className="curve-legend"><span><i />预计总资产</span><span><i />预计可用余额</span><span>定期到期后计入可用余额</span></div><p className="fine-print">预测以十年为刻度，按各笔资金的实际到期日期释放可用余额；收益不代表真实到账。</p></div>
+  return <div className="finance-curve"><div><h3>固定年化资产的十年试算</h3><p>规划假设 · 未纳入手动市值资产、目标支出与新增储蓄</p></div><svg viewBox="0 0 760 206" role="img" aria-label={`${today.slice(0, 4)}至${dates[10].slice(0, 4)}年的预测总资产与可用余额曲线`}><path d="M50 30V168H710" fill="none" stroke="var(--line)" />{[0, 5, 10].map((y, i) => <text key={y} x={50 + i * 330} y={193}>{dates[y].slice(0, 4)}</text>)}<text x="50" y="18">余额 / 元</text><text x="600" y="18">¥{yuan(balances[10])}</text><polyline points={points(balances)} fill="none" stroke="var(--accent)" strokeWidth="3" strokeDasharray="7 5" /><polyline points={points(available)} fill="none" stroke="#b48352" strokeWidth="2.5" strokeDasharray="3 4" /></svg><div className="curve-legend"><span><i />预计总资产</span><span><i />预计可用余额</span><span>定期到期后计入可用余额</span></div><p className="fine-print">预测仅包含固定年化资产，按实际到期日期释放可用余额；手动市值资产未纳入，收益不代表真实到账。</p></div>
 }
 
 function GoalCard({ goal, open }: { goal: Goal; open: (panel: Panel) => void }) {
@@ -220,10 +226,10 @@ function GoalForm({ item, fresh, journal, save, sample = false }: { item: Goal; 
   const [manageCategories, setManageCategories] = useState(false)
   const managerId = useId()
   const { busy } = useCategories()
-  const liquidFunds = journal.funds.filter(f => f.liquid)
+  const liquidFunds = journal.funds.filter(f => availableForPlanning(f, today))
   const liquidAmount = liquidFunds.reduce((sum, f) => sum + f.principalCents, 0)
-  const available = liquidAmount - journal.goals.filter(g => g.id !== draft.id).reduce((sum, g) => sum + g.allocatedCents, 0)
-  const weightedRate = liquidAmount ? liquidFunds.reduce((sum, f) => sum + f.principalCents * f.rate, 0) / liquidAmount : 0
+  const available = Math.max(0, liquidAmount - journal.goals.filter(g => g.id !== draft.id).reduce((sum, g) => sum + g.allocatedCents, 0))
+  const weightedRate = liquidAmount ? liquidFunds.reduce((sum, f) => sum + f.principalCents * planningRate(f), 0) / liquidAmount : 0
   const months = monthsUntil(today, draft.date)
   const forecast = monthlySaving(draft.budgetCents, draft.allocatedCents, draft.newSavingRate ?? 0, months, weightedRate)
   const changedDate = !fresh && draft.date !== item.date
@@ -242,35 +248,10 @@ function GoalForm({ item, fresh, journal, save, sample = false }: { item: Goal; 
     {manageCategories && <CategoryManager id={managerId} onCreated={category => setDraft(current => ({ ...current, category }))} />}
     <label>为什么想做这件事<textarea rows={3} value={draft.description} onChange={e => setDraft({ ...draft, description: e.target.value })} /></label>
     <div className="form-grid"><label>预计需要 / 元<input type="number" min="0" max="100000000" step=".01" value={draft.budgetCents / 100} onChange={e => setDraft({ ...draft, budgetCents: cents(e.target.value) })} required /></label><label>已为它分配 / 元<input type="number" min="0" step=".01" value={draft.allocatedCents / 100} onChange={e => setDraft({ ...draft, allocatedCents: cents(e.target.value) })} required /></label></div>
-    <p className="fine-print">预算为手动估计。原型将分配资金放在活期池中，不重复分配；十年定期无法用于到期前的目标。</p>
+    <p className="fine-print">预算为手动估计。分配来自可规划资金池，包含你设为可赎回的资产；它们不一定即时到账。手动市值的未来收益假设为 0%，锁定资金在到期前不能分配。</p>
     {draft.budgetCents > 0 && <div className="forecast-box"><span className="eyebrow">为这个心愿，每月留一点</span><div className="forecast-number">{forecast.monthly === null ? '目标已临近' : <><small>¥</small>{exactYuan(forecast.monthly)}<span>/ 月</span></>}</div><p>{months} 次月末储蓄 · 已分配资金加权年化 {weightedRate.toFixed(2)}%<br />当前分配预计增长到 ¥{exactYuan(forecast.futureAllocated)}，剩余缺口 ¥{exactYuan(forecast.gap)}。</p><div className="form-grid"><label>每月生活开支 / 元<input aria-label="每月生活开支" type="number" min="0" step=".01" value={expense} onChange={e => setExpense(e.target.value)} /></label><label>每月固定义务 / 元<input aria-label="每月固定义务" type="number" min="0" step=".01" value={obligation} onChange={e => setObligation(e.target.value)} /></label></div><label>新增储蓄年化假设 / %<input aria-label="新增储蓄年化假设" type="number" min="0" max="30" step=".01" required value={draft.newSavingRate ?? 0} onChange={e => setDraft({ ...draft, newSavingRate: Number(e.target.value) })} /></label><div className="income-line"><span>所需月可支配收入</span><strong>{forecast.monthly === null ? '先调整日期' : `¥${exactYuan(forecast.monthly + cents(expense) + cents(obligation))}`}</strong></div><p className="fine-print">本目标测算，不含其他目标的月储蓄。收入指税后可支配收入；生活开支默认参考上月实际支出，可临时调整；义务请仅填未包含在生活开支中的金额，试算不会修改账单。新增储蓄默认 0% 收益；只有明确计划投入时再修改年化假设。</p></div>}
     <label>自己记录的进度 · {draft.progress}%<input aria-label="目标进度" className="progress-input" type="range" min="0" max="100" value={draft.progress} onChange={e => setDraft({ ...draft, progress: Number(e.target.value) })} /></label>
     {preview && <div className="notice">目标日期从 {dateLabel(item.date)} 调整到 {dateLabel(draft.date)}。上述月储蓄已按新日期重算；保存后可撤销。</div>}{error && <p role="alert" className="form-error">{error}</p>}<div className="editor-footer"><span>试算参考日：{dateLabel(today)}</span><button className="primary-button" disabled={pending || busy} type="submit">{pending ? '正在保存…' : changedDate && !preview ? '预览日期调整' : preview ? '确认调整并保存' : '保存这个心愿'}</button></div>
-  </form>
-}
-
-function FundForm({ item, journal, save }: { item: Fund; journal: Journal; save: (item: Fund) => Promise<boolean> }) {
-  const [draft, setDraft] = useState(item)
-  const [error, setError] = useState('')
-  const [pending, setPending] = useState(false)
-  const submit = async (event: FormEvent) => {
-    event.preventDefault()
-    setError('')
-    if (!draft.liquid && (!draft.maturityDate || draft.maturityDate <= draft.startDate)) { setError('请设置晚于参考日的到期日期。'); return }
-    const liquid = journal.funds.filter(f => f.id !== draft.id && f.liquid).reduce((sum, f) => sum + f.principalCents, draft.liquid ? draft.principalCents : 0)
-    const assigned = journal.goals.reduce((sum, g) => sum + g.allocatedCents, 0)
-    if (liquid < assigned) { setError(`已有目标分配 ¥${exactYuan(assigned)}，修改后活期余额不足。请先调整目标分配。`); return }
-    setPending(true); const ok = await save({ ...draft, maturityDate: draft.liquid ? '' : draft.maturityDate }); setPending(false)
-    if (!ok) setError('保存未完成，请重试。')
-  }
-  const previewDate = draft.liquid ? yearsAfter(draft.startDate, 1) : draft.maturityDate
-  return <form className="editor" onSubmit={submit}><label>这笔钱的名字<input required maxLength={80} value={draft.name} onChange={e => setDraft({ ...draft, name: e.target.value })} /></label><div className="form-grid"><label>参考日余额 / 元<input required type="number" min="0" max="100000000" step=".01" value={draft.principalCents / 100} onChange={e => setDraft({ ...draft, principalCents: cents(e.target.value) })} /></label><label>年化收益 / %<input required type="number" min="0" max="30" step=".01" value={draft.rate} onChange={e => setDraft({ ...draft, rate: Number(e.target.value) })} /></label></div>
-    <p className="fine-print">这笔资金的参考日：{dateLabel(draft.startDate)}。余额视为截至当日已结算的金额，之前的利息不会重复累加。原型支持固定非负年化，正式版再细化付息方式。</p>
-    <label>资金可用性<select value={draft.liquid ? 'liquid' : 'locked'} onChange={e => setDraft({ ...draft, liquid: e.target.value === 'liquid' })}><option value="liquid">活期 · 随时可用</option><option value="locked">定期 · 到期可用</option></select></label>
-    {!draft.liquid && <label>到期日期<input required min={draft.startDate} max="2100-12-31" type="date" value={draft.maturityDate} onChange={e => setDraft({ ...draft, maturityDate: e.target.value })} /></label>}
-    <label>计息方式<select value={draft.mode} onChange={e => setDraft({ ...draft, mode: e.target.value as Fund['mode'] })}><option value="compound">复利 · 利息继续投入</option><option value="simple">单利 · 按参考日余额计息</option></select></label>
-    {previewDate && <div className="forecast-box"><span className="eyebrow">{draft.liquid ? '一年后预计余额' : '到期预计余额'}</span><div className="forecast-number"><small>¥</small>{exactYuan(futureValue(draft, previewDate))}</div><p>预计收益 ¥{exactYuan(futureValue(draft, previewDate) - draft.principalCents)}<br />{draft.liquid ? '按固定年化估算，实际收益可能变化。' : `${dateLabel(draft.maturityDate)} 到期；到期后默认零收益。`}</p></div>}
-    <div className="notice">预计收益不代表实际入账。定期在到期前锁定本金与利息，不提前用于目标；暂不模拟提前支取。</div>{error && <p role="alert" className="form-error">{error}</p>}<div className="editor-footer"><span>调整后目标试算随之更新</span><button className="primary-button" disabled={pending} type="submit">{pending ? '正在保存…' : '保存资金安排'}</button></div>
   </form>
 }
 
@@ -321,6 +302,12 @@ export default function App() {
   const saveMoment = async (item: Moment) => change({ ...journal, moments: journal.moments.some(m => m.id === item.id) ? journal.moments.map(m => m.id === item.id ? item : m) : [...journal.moments, item] })
   const saveGoal = async (item: Goal) => change({ ...journal, goals: journal.goals.some(g => g.id === item.id) ? journal.goals.map(g => g.id === item.id ? item : g) : [...journal.goals, item] })
   const saveFund = async (item: Fund) => change({ ...journal, funds: journal.funds.some(f => f.id === item.id) ? journal.funds.map(f => f.id === item.id ? item : f) : [...journal.funds, item] })
+  const saveAccounts = async (accounts: AssetAccount[]) => {
+    if (!isAssetAccounts(accounts)) return false
+    const ids = new Set(accounts.map(a => a.id))
+    if (journal.funds.some(f => f.accountId && !ids.has(f.accountId))) return false
+    return change({ ...journal, accounts }, '资金账户已保存', false)
+  }
   const saveMonthly = (summary: MonthlySummary) => change({ ...journal, monthlySummaries: [...(journal.monthlySummaries ?? []).filter(s => s.month !== summary.month), summary] }, '这个月的收支已收好', false)
   const removeMonthly = (month: string) => change({ ...journal, monthlySummaries: (journal.monthlySummaries ?? []).filter(s => s.month !== month) }, '已移除这份月结算', false)
   const saveCategories = async (categories: CategoryDefinition[]) => {
@@ -336,7 +323,7 @@ export default function App() {
   const switchSample = () => {
     if (saving.current || !loaded.current || loadError.current) return
     if (sampleMode) setJournal(personalJournal.current)
-    else { personalJournal.current = journal; setJournal({ ...seedJournal(), monthlySummaries: [{ month: previousMonth(today), incomeCents: 1800000, expenseCents: 650025, note: "虚构样例：生活、出行与日常开销。" }] }) }
+    else { personalJournal.current = journal; setJournal({ ...assetSample(today), monthlySummaries: [{ month: previousMonth(today), incomeCents: 1800000, expenseCents: 650025, note: "虚构样例：生活、出行与日常开销。" }] }) }
     setSampleMode(!sampleMode); setPage('home'); setPanel(null); setToast(''); setUndo(null); setStatus('saved'); window.scrollTo(0, 0)
   }
   const newMoment = () => setPanel({ type: 'moment', fresh: true, item: { id: crypto.randomUUID(), title: '', date: localDay(), category: journalCategories(journal)[0].id, importance: 1, story: '', reflection: '', storyFormat: 'markdown', reflectionFormat: 'markdown' } })
@@ -345,11 +332,9 @@ export default function App() {
   const newFund = () => setPanel({ type: 'fund', fresh: true, item: { id: crypto.randomUUID(), name: '', principalCents: 0, rate: 0, startDate: localDay(), maturityDate: '', mode: 'compound', liquid: true } })
   const navigate = (id: Page) => { setPage(id); window.scrollTo(0, 0) }
   const total = journal.funds.reduce((sum, f) => sum + f.principalCents, 0)
-  const liquid = journal.funds.filter(f => f.liquid).reduce((sum, f) => sum + f.principalCents, 0)
-  const allocated = journal.goals.reduce((sum, g) => sum + g.allocatedCents, 0)
   const latest = [...journal.moments].sort((a, b) => b.date.localeCompare(a.date))[0]
   const disabled = status === 'loading' || status === 'saving' || loadError.current
-  const isBlank = !journal.moments.length && !journal.goals.length && !journal.funds.length && !journal.monthlySummaries?.length
+  const isBlank = !journal.moments.length && !journal.goals.length && !journal.funds.length && !journal.monthlySummaries?.length && !journal.accounts?.length
   return <CategoryProvider journal={journal} busy={disabled} save={saveCategories}><div className="app-shell">
     <aside className="sidebar"><button className="brand" onClick={() => navigate('home')} aria-label="HawTend，返回我的手账"><span className="brand-symbol"><BrandMark size={36} /></span><span>HawTend<small>照料生活，慢慢生长</small></span></button><span className="sidebar-label">属于你的日子</span><nav aria-label="主要导航">{navItems.map(n => <button key={n.id} className={`nav-item ${page === n.id ? 'active' : ''}`} aria-current={page === n.id ? 'page' : undefined} onClick={() => navigate(n.id)}><Icon name={n.icon} />{n.label}{page === n.id && <span className="nav-dot" />}</button>)}</nav><div className="sidebar-note"><Icon name="sprout" size={27} /><p>不必把每一天填满，<br />慢慢走，也是在向前。</p><span>给未来的自己</span></div><div className="sidebar-bottom"><button className="settings-link" onClick={() => setPanel({ type: 'settings' })}><Icon name="settings" size={18} />手账设置</button><div className="profile"><span className="avatar">我</span><div><strong>我的人生手账</strong><small>{sampleMode ? "样例体验 · 虚构数据" : "个人空间 · 本机手账"}</small></div></div></div></aside>
     <main className="main"><header className="topbar"><div className="breadcrumb">我的空间<span>/</span>{navItems.find(n => n.id === page)?.label}</div><span className="mobile-brand"><BrandMark size={28} />HawTend</span><div className="topbar-actions"><span className={`save-status ${status === 'failed' ? 'failed' : ''}`} role="status"><span className="status-dot" />{sampleMode ? '样例体验' : status === 'loading' ? '正在打开手账' : status === 'saving' ? '正在保存' : status === 'failed' ? '本地保存不可用' : !online ? '离线 · 本机保存' : '仅本机保存'}</span><button className="icon-button mobile-settings" aria-label="手账设置" onClick={() => setPanel({ type: 'settings' })}><Icon name="settings" size={18} /></button><button className="primary-button top-record" disabled={disabled} onClick={() => setPanel({ type: 'new' })}><Icon name="plus" size={17} />记下一刻</button></div></header>
@@ -367,16 +352,17 @@ export default function App() {
       </>}
       {page === 'timeline' && <><div className="page-heading"><span className="eyebrow">PAST, PRESENT & POSSIBILITY</span><h1>日子连起来，就是人生。</h1><p>已发生的大事与未来的心愿，在这里相遇。</p></div><Timeline journal={journal} open={setPanel} /><div className="timeline-bottom-note"><Icon name="book" size={25} /><div><strong>事情有大小，感受没有。</strong><p>分类颜色帮你找到同类的日子；重要程度用星标、大小与文字一起区分。</p></div><button className="quiet-button" onClick={newMoment} disabled={disabled}><Icon name="plus" size={17} />记录一个日子</button></div></>}
       {page === 'goals' && <><div className="page-heading with-action"><div><span className="eyebrow">MAKE ROOM FOR WHAT MATTERS</span><h1>心愿有了位置，<br className="mobile-only" />未来就有了方向。</h1><p>给想做的事一点时间，也一点认真。</p></div><button className="primary-button" onClick={newGoal} disabled={disabled}><Icon name="plus" size={17} />添加心愿</button></div><div className="goal-grid">{journal.goals.map(g => <div key={g.id} className="goal-tile"><CategoryTag category={g.category} /><GoalCard goal={g} open={setPanel} /><p>{g.description}</p><button className="text-button" onClick={() => setPanel({ type: 'goal', item: g })}>看看如何靠近它<Icon name="arrow" size={16} /></button></div>)}</div>{!journal.goals.length && <section className="blank-card"><Icon name="flag" size={32} /><h2>把第一份期待，写在这里。</h2><p>不必一次想好整个人生，先给一件想做的事留个位置。</p><button className="quiet-button" disabled={disabled} onClick={newGoal}>添加第一个心愿<Icon name="plus" size={16} /></button></section>}<div className="gentle-banner"><Icon name="sprout" size={28} /><p>计划可以调整。<br /><span>改变日期前，先看一眼新的储蓄节奏，再决定怎么走。</span></p></div></>}
-      {page === 'funds' && <><div className="page-heading with-action"><div><span className="eyebrow">A LITTLE PEACE OF MIND</span><h1>为想要的生活，<br className="mobile-only" />留一份底气。</h1><p>回看每月的花费，也安排慢慢长大的积蓄。</p></div>{fundsView === "funds" && <button className="primary-button" onClick={newFund} disabled={disabled}><Icon name="plus" size={17} />添加资金</button>}</div><div className="funds-tabs" role="group" aria-label="收支与资金视图"><button aria-pressed={fundsView === "monthly"} onClick={() => setFundsView("monthly")}><Icon name="book" size={17} />每月收支</button><button aria-pressed={fundsView === "funds"} onClick={() => setFundsView("funds")}><Icon name="wallet" size={17} />资金安排</button></div>{fundsView === "monthly" ? <MonthlyLedger summaries={journal.monthlySummaries ?? []} save={saveMonthly} remove={removeMonthly} busy={disabled} sample={sampleMode} uninvested={newCashFund} /> : <><div className="fund-summary"><div><span>记录的总余额</span><strong><small>¥</small>{yuan(total)}</strong><p>各笔资金按自己的参考日记录</p></div><div><span>随时可用</span><strong>¥{yuan(liquid)}</strong><p>定期本金和锁定利息暂不计入</p></div><div><span>已分配给心愿</span><strong>¥{yuan(allocated)}</strong><p>活期尚未分配 ¥{yuan(liquid - allocated)}</p></div></div><div className="section-heading"><div><span className="eyebrow">MONEY, WITH A PURPOSE</span><h2>我的资金安排</h2></div><span className="subtle">点击调整余额与收益</span></div><div className="fund-list">{journal.funds.map(f => <button key={f.id} className="fund-row" onClick={() => setPanel({ type: 'fund', item: f })}><span className={`fund-icon ${f.liquid ? 'liquid' : ''}`}><Icon name={f.liquid ? 'wallet' : 'lock'} size={24} /></span><span className="fund-name"><strong>{f.name}</strong><span>{f.liquid ? '活期 · 随时可用' : `定期 · ${dateLabel(f.maturityDate)} 到期`}<span className="small-separator">/</span>{f.mode === 'compound' ? '复利' : '单利'}</span></span><span className="fund-rate"><strong>{f.rate.toFixed(2)}<small>%</small></strong><span>年化假设</span></span><span className="fund-value"><strong>¥{yuan(f.principalCents)}</strong><span>参考日余额</span></span><Icon name="chevron" size={17} /></button>)}</div><FinanceCurve funds={journal.funds} /><div className="notice financial-note"><Icon name="leaf" size={20} /><span>收益只是规划假设，不是保证。资金配置变化后，心愿中的月储蓄会重新计算；预测与实际账单分开记录。</span></div></>}</>}
+      {page === 'funds' && <><div className="page-heading with-action"><div><span className="eyebrow">A LITTLE PEACE OF MIND</span><h1>为想要的生活，<br className="mobile-only" />留一份底气。</h1><p>回看每月的花费，也安排慢慢长大的积蓄。</p></div>{fundsView === "funds" && <button className="primary-button" onClick={newFund} disabled={disabled}><Icon name="plus" size={17} />添加资金</button>}</div><div className="funds-tabs" role="group" aria-label="收支与资金视图"><button aria-pressed={fundsView === "monthly"} onClick={() => setFundsView("monthly")}><Icon name="book" size={17} />每月收支</button><button aria-pressed={fundsView === "funds"} onClick={() => setFundsView("funds")}><Icon name="wallet" size={17} />资金安排</button></div>{fundsView === "monthly" ? <MonthlyLedger summaries={journal.monthlySummaries ?? []} save={saveMonthly} remove={removeMonthly} busy={disabled} sample={sampleMode} uninvested={newCashFund} /> : <FundsPage journal={journal} edit={item => setPanel({ type: "fund", item })} update={item => setPanel({ type: "valuation", item })} saveAccounts={saveAccounts} busy={disabled} forecast={funds => <FinanceCurve funds={funds} />} />}</>}
       <footer className="page-footer"><span>HawTend · 好好生活，慢慢记录</span><button onClick={() => setPanel({ type: 'settings' })} className="text-button">本地原型 · 云同步未连接<Icon name="cloud" size={15} /></button></footer>
       </div></main>
     <nav className="mobile-nav" aria-label="手机主要导航">{navItems.map(n => <button key={n.id} className={page === n.id ? 'active' : ''} aria-current={page === n.id ? 'page' : undefined} onClick={() => navigate(n.id)}><Icon name={n.icon} size={21} /><span>{n.short}</span></button>)}<button className="mobile-add" disabled={disabled} aria-label="记下一刻" onClick={() => setPanel({ type: 'new' })}><Icon name="plus" size={23} /><span>记录</span></button></nav>
-    {panel && <Modal title={panel.type === 'moment' ? panel.fresh ? '记下一个日子' : '回到那一天' : panel.type === 'goal' ? panel.fresh ? '给未来一个心愿' : '慢慢靠近这个心愿' : panel.type === 'fund' ? panel.fresh ? '给积蓄一个位置' : '安排这笔积蓄' : panel.type === 'settings' ? '把手账调成喜欢的样子' : panel.type === 'cluster' ? '这一段，发生了这些事' : '这一刻，想记下什么？'} subtitle={panel.type === 'moment' ? '事情与感想，分别收藏。' : panel.type === 'new' ? '一个已经发生的日子，或一个正在期待的未来。' : undefined} close={closePanel}>
+    {panel && <Modal title={panel.type === 'moment' ? panel.fresh ? '记下一个日子' : '回到那一天' : panel.type === 'goal' ? panel.fresh ? '给未来一个心愿' : '慢慢靠近这个心愿' : panel.type === 'fund' ? panel.fresh ? '给积蓄一个位置' : '安排这笔积蓄' : panel.type === 'valuation' ? '记下这次市值变化' : panel.type === 'settings' ? '把手账调成喜欢的样子' : panel.type === 'cluster' ? '这一段，发生了这些事' : '这一刻，想记下什么？'} subtitle={panel.type === 'moment' ? '事情与感想，分别收藏。' : panel.type === 'new' ? '一个已经发生的日子，或一个正在期待的未来。' : undefined} close={closePanel}>
       {panel.type === 'cluster' && <div className="cluster-list">{panel.items.map(({ kind, item }) => <button key={item.id} onClick={() => setPanel(kind === 'moment' ? { type: 'moment', item: item as Moment } : { type: 'goal', item: item as Goal })}><CategoryTag category={item.category} /><span><strong>{item.title}</strong><small>{dateLabel(item.date)} · {kind === 'moment' ? importanceLabels[(item as Moment).importance] : '未来计划'}</small></span><Icon name="chevron" size={17} /></button>)}</div>}
       {sampleMode && panel.type !== 'settings' && <p className="notice">样例体验：这里的修改仅在本次浏览中保留，不会写入个人手账。</p>}
       {panel.type === 'moment' && <MomentForm key={panel.item.id} item={panel.item} fresh={panel.fresh} save={saveMoment} sample={sampleMode} />}
       {panel.type === 'goal' && <GoalForm key={panel.item.id} item={panel.item} fresh={panel.fresh} journal={journal} save={saveGoal} sample={sampleMode} />}
-      {panel.type === 'fund' && <FundForm key={panel.item.id} item={panel.item} journal={journal} save={saveFund} />}
+      {panel.type === 'fund' && <FundEditor key={panel.item.id} item={panel.item} fresh={panel.fresh} journal={journal} save={saveFund} saveAccounts={saveAccounts} update={() => setPanel({ type: "valuation", item: panel.item })} busy={disabled} />}
+      {panel.type === 'valuation' && <ValuationEditor key={panel.item.id} item={panel.item} save={saveFund} busy={disabled} />}
       {panel.type === 'new' && <div className="new-options"><button onClick={newMoment}><span className="option-icon"><Icon name="book" size={26} /></span><span><strong>值得记住的日子</strong><small>记录事情，也记录当时的心情</small></span><Icon name="arrow" size={19} /></button><button onClick={newGoal}><span className="option-icon blue"><Icon name="flag" size={26} /></span><span><strong>对未来的一个期待</strong><small>放上时间轴，慢慢计划与实现</small></span><Icon name="arrow" size={19} /></button></div>}
       {panel.type === 'settings' && <div className="settings-panel"><p className="settings-intro">三种生活的底色，试试哪一种更像你。<br /><span>HawTend · 好好照料生活，也记录慢慢长大的自己。</span></p><div className="theme-options">{([{ id: 'paper', title: '暖纸手账', note: '纸色与鼠尾草绿，安静而有温度', colors: ['#f5f2eb', '#566958', '#c79265'] }, { id: 'forest', title: '森林笔记', note: '浅雾绿与深林色，清新、自然', colors: ['#edf1e9', '#41654f', '#94a881'] }, { id: 'dusk', title: '暮色日记', note: '浅燕麦与梅子色，柔软而内敛', colors: ['#f4eef0', '#805d70', '#c1949d'] }] as const).map(t => <button key={t.id} disabled={disabled} className={`theme-option ${journal.theme === t.id ? 'chosen' : ''}`} aria-pressed={journal.theme === t.id} onClick={() => change({ ...journal, theme: t.id }, '手账配色已保存到本机', false)}><span className="swatches">{t.colors.map(c => <i key={c} style={{ background: c }} />)}</span><strong>{t.title}</strong><span>{t.note}</span>{journal.theme === t.id && <Icon name="check" size={17} />}</button>)}</div><CategoryManager /><div className="settings-storage"><Icon name="book" size={25} /><div><h3>{sampleMode ? "正在体验样例手账" : "样例和你的手账，分别收藏"}</h3><p>新手账从空白开始。样例只用于体验，修改不会加入个人记录。</p><button className="text-button" disabled={disabled} onClick={switchSample}>{sampleMode ? "回到我的手账" : "查看样例手账"}<Icon name="arrow" size={16} /></button></div></div><div className="settings-storage"><Icon name="cloud" size={25} /><div><h3>这里是本地设计原型</h3><p>云同步尚未接入。编辑仅存于当前浏览器，不会同步到另一台设备。浏览器清理可能删除本地内容，可以先导出留存。</p></div></div><button className="quiet-button export-button" onClick={exportData}><Icon name="download" size={18} />{sampleMode ? "导出样例手账 JSON" : "导出我的手账 JSON"}</button><p className="fine-print">账单导入、逐笔记账、数据恢复、账户登录与健康记录在后续分期实现。每月收支现已支持本机记录。请先用虚构内容体验流程。</p></div>}
     </Modal>}

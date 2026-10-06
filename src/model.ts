@@ -32,6 +32,9 @@ export interface Goal {
   newSavingRate?: number
 }
 export interface MonthlySummary { month: string; incomeCents: number; expenseCents: number; note: string }
+export interface AssetAccount { id: string; name: string; kind: 'payment' | 'bank' | 'cash' | 'other' }
+export type AssetType = 'cash' | 'deposit' | 'fund' | 'other'
+export interface Valuation { date: string; valueCents: number; netFlowCents: number; cashIncomeCents: number; note: string }
 export interface Fund {
   id: string
   name: string
@@ -41,6 +44,11 @@ export interface Fund {
   maturityDate: string
   mode: 'simple' | 'compound'
   liquid: boolean
+  accountId?: string
+  assetType?: AssetType
+  returnMode?: 'fixed' | 'manual'
+  valuationBase?: { date: string; valueCents: number }
+  valuations?: Valuation[]
 }
 export interface Journal {
   schemaVersion: 1
@@ -51,6 +59,7 @@ export interface Journal {
   // Optional for compatibility with journals written before category management.
   categories?: CategoryDefinition[]
   monthlySummaries?: MonthlySummary[]
+  accounts?: AssetAccount[]
 }
 export const categories: Record<Category, { label: string; color: string; light: string; icon: string }> = {
   life: { label: '生活', color: '#a86d48', light: '#f2e7dc', icon: 'sun' },
@@ -75,6 +84,7 @@ export function isUneditedSample(journal: Journal): boolean {
     .every(key => JSON.stringify(journal[key]) === JSON.stringify(sample[key]))
     && JSON.stringify(journal.categories ?? defaultCategories()) === JSON.stringify(sample.categories)
     && !journal.monthlySummaries?.length
+    && !journal.accounts?.length
 }
 
 export function seedJournal(): Journal {
