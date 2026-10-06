@@ -1,4 +1,11 @@
-export type Category = 'life' | 'growth' | 'travel' | 'health'
+// Category IDs stay stable when the user renames their labels.
+export type Category = string
+export interface CategoryDefinition {
+  id: Category
+  label: string
+  color: string
+  icon: string
+}
 export type Importance = 1 | 2 | 3
 export interface Moment {
   id: string
@@ -35,6 +42,8 @@ export interface Journal {
   goals: Goal[]
   funds: Fund[]
   theme: 'paper' | 'forest' | 'dusk'
+  // Optional for compatibility with journals written before category management.
+  categories?: CategoryDefinition[]
 }
 export const categories: Record<Category, { label: string; color: string; light: string; icon: string }> = {
   life: { label: '生活', color: '#a86d48', light: '#f2e7dc', icon: 'sun' },
@@ -44,8 +53,12 @@ export const categories: Record<Category, { label: string; color: string; light:
 }
 export const importanceLabels = { 1: '日常记录', 2: '重要事件', 3: '人生里程碑' }
 
+export function defaultCategories(): CategoryDefinition[] {
+  return Object.entries(categories).map(([id, { label, color, icon }]) => ({ id, label, color, icon }))
+}
+
 export function emptyJournal(theme: Journal['theme'] = 'paper'): Journal {
-  return { schemaVersion: 1, theme, moments: [], goals: [], funds: [] }
+  return { schemaVersion: 1, theme, moments: [], goals: [], funds: [], categories: defaultCategories() }
 }
 
 // Only the untouched fixture is omitted; edited legacy journals must be preserved.
@@ -53,12 +66,14 @@ export function isUneditedSample(journal: Journal): boolean {
   const sample = seedJournal()
   return journal.schemaVersion === 1 && (['moments', 'goals', 'funds'] as const)
     .every(key => JSON.stringify(journal[key]) === JSON.stringify(sample[key]))
+    && JSON.stringify(journal.categories ?? defaultCategories()) === JSON.stringify(sample.categories)
 }
 
 export function seedJournal(): Journal {
   return {
     schemaVersion: 1,
     theme: 'paper',
+    categories: defaultCategories(),
     moments: [
       { id: 'm1', title: '搬进自己的小窝', date: '2026-03-15', category: 'life', importance: 3, story: '布置好书桌，买了一盏暖色的落地灯。窗边留给植物，也留给慢下来的自己。', reflection: '原来家的感觉，不是拥有多少东西，而是终于可以按自己的节奏生活。想把平凡的小日子，也认真收藏起来。' },
       { id: 'm2', title: '第一次跑完 5 公里', date: '2026-06-21', category: 'health', importance: 2, story: '傍晚沿河慢跑，第一次完整跑完了 5 公里。', reflection: '比速度更重要的，是我没有停下来。身体的变化慢一点也没关系。' },

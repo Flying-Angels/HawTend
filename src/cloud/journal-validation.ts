@@ -1,6 +1,7 @@
 import type { Journal } from '../model'
+import { isCategoryDefinitions } from '../categories.ts'
 
-const categories = new Set(['life', 'growth', 'travel', 'health'])
+const legacyCategories = ['life', 'growth', 'travel', 'health']
 const themes = new Set(['paper', 'forest', 'dusk'])
 const modes = new Set(['simple', 'compound'])
 const object = (value: unknown): value is Record<string, unknown> => value !== null && typeof value === 'object' && !Array.isArray(value)
@@ -26,6 +27,8 @@ function records(value: unknown, valid: (row: Record<string, unknown>) => boolea
 // Validate remote data before a later sync coordinator is allowed to replace a local journal.
 export function isJournal(value: unknown): value is Journal {
   if (!object(value) || value.schemaVersion !== 1 || !text(value.theme) || !themes.has(value.theme)) return false
+  if (value.categories !== undefined && !isCategoryDefinitions(value.categories)) return false
+  const categories = new Set(value.categories === undefined ? legacyCategories : value.categories.map(c => c.id))
   return records(value.moments, row => text(row.title) && date(row.date) && text(row.category) && categories.has(row.category)
     && [1, 2, 3].includes(row.importance as number) && text(row.story) && text(row.reflection))
     && records(value.goals, row => text(row.title) && date(row.date) && text(row.category) && categories.has(row.category)

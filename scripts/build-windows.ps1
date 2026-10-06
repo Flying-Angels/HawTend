@@ -1,5 +1,6 @@
-param([switch]$SkipWebBuild)
+param([switch]$SkipWebBuild, [string]$ExecutableName = 'HawTend.exe')
 $ErrorActionPreference = 'Stop'
+if ($ExecutableName -notmatch '^HawTend(?:-[0-9.]+)?\.exe$') { throw 'Use a HawTend executable filename without a directory.' }
 $projectDir = Split-Path -Parent $PSScriptRoot
 $frameworkDir = Join-Path $env:WINDIR 'Microsoft.NET\Framework64\v4.0.30319'
 $compiler = Join-Path $frameworkDir 'csc.exe'
@@ -50,7 +51,7 @@ try {
         foreach ($frame in $frames) { $writer.Write([byte[]]$frame.Bytes) }
     } finally { $writer.Dispose() }
 
-    $exePath = Join-Path $releaseDir 'HawTend.exe'
+    $exePath = Join-Path $releaseDir $ExecutableName
     & $compiler /nologo /target:winexe /platform:anycpu /optimize+ /codepage:65001 "/win32icon:$iconPath" "/resource:$iconPath,HawTend.Icon" "/resource:$zipPath,HawTend.Assets" "/out:$exePath" /reference:System.Windows.Forms.dll /reference:System.Drawing.dll /reference:System.IO.Compression.dll (Join-Path $projectDir 'windows\HawTend.cs')
     if ($LASTEXITCODE -ne 0) { throw 'Windows build failed.' }
     # A separate ICO lets shortcuts use the new artwork without reusing cached EXE icons.

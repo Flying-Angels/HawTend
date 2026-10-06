@@ -1,8 +1,10 @@
-import { useCallback, useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useId, useRef, useState } from 'react'
 import type { CSSProperties, FormEvent, ReactNode } from 'react'
 import { BrandMark, Icon, Landscape } from './Icons'
-import { categories, emptyJournal, importanceLabels, seedJournal } from './model'
-import type { Category, Fund, Goal, Importance, Journal, Moment } from './model'
+import { emptyJournal, importanceLabels, seedJournal } from './model'
+import type { Category, CategoryDefinition, Fund, Goal, Importance, Journal, Moment } from './model'
+import { CategoryField, CategoryManager, CategoryProvider, useCategories, useCategory } from './CategoryManager'
+import { categoryAppearance, isCategoryDefinitions, journalCategories, withCategories } from './categories'
 import { cents, exactYuan, futureValue, monthlySaving, monthsUntil, yuan } from './finance'
 import { readJournal, writeJournal } from './storage'
 
@@ -15,8 +17,8 @@ type Panel = { type: 'moment'; item: Moment; fresh?: boolean } | { type: 'goal';
 type Status = 'loading' | 'saved' | 'saving' | 'failed'
 
 function CategoryTag({ category }: { category: Category }) {
-  const c = categories[category]
-  return <span className="category-tag" style={{ '--category': c.color, '--category-light': c.light } as CSSProperties}><Icon name={c.icon} size={14} />{c.label}</span>
+  const c = useCategory(category)
+  return <span className="category-tag" title={c.label} style={{ '--category': c.color, '--category-light': c.light } as CSSProperties}><Icon name={c.icon} size={14} /><span>{c.label}</span></span>
 }
 
 function Modal({ title, subtitle, children, close }: { title: string; subtitle?: string; children: ReactNode; close: () => void }) {
@@ -24,7 +26,7 @@ function Modal({ title, subtitle, children, close }: { title: string; subtitle?:
   useEffect(() => {
     const previous = document.activeElement as HTMLElement | null
     const container = ref.current!
-    const focusable = () => [...container.querySelectorAll<HTMLElement>('button, input, select, textarea, a[href]')].filter(el => !el.hasAttribute('disabled'))
+    const focusable = () => [...container.querySelectorAll<HTMLElement>('button, input, select, textarea, a[href]')].filter(el => !el.matches(':disabled') && el.getClientRects().length > 0)
     focusable()[0]?.focus()
     const key = (e: KeyboardEvent) => {
       if (e.key === 'Escape') close()
@@ -45,7 +47,9 @@ function Modal({ title, subtitle, children, close }: { title: string; subtitle?:
 }
 
 function Timeline({ journal, compact = false, open }: { journal: Journal; compact?: boolean; open: (panel: Panel) => void }) {
+  const { categories } = useCategories()
   const [filter, setFilter] = useState<Category | 'all'>('all')
+  useEffect(() => { if (filter !== 'all' && !categories.some(c => c.id === filter)) setFilter('all') }, [categories, filter])
   const [onlyImportant, setOnlyImportant] = useState(false)
   const [zoom, setZoom] = useState(1)
   const [year, setYear] = useState(2026)
@@ -71,7 +75,7 @@ function Timeline({ journal, compact = false, open }: { journal: Journal; compac
   const returnToday = () => { setYear(2026); requestAnimationFrame(scrollToday) }
   return <section className={`timeline-section ${compact ? 'compact' : 'expanded'}`}>
     <div className="section-heading"><div><span className="eyebrow">THE DAYS THAT MAKE YOU</span><h2>{compact ? '一路走来，也一路向前' : '每一个节点，都是你的一部分'}</h2></div>{compact ? <button className="text-button" onClick={() => { window.dispatchEvent(new Event('open-timeline')) }}>展开时间轴<Icon name="arrow" size={16} /></button> : <button className="quiet-button" onClick={returnToday}><Icon name="sun" size={16} />回到今天</button>}</div>
-    <div className="timeline-toolbar"><div className="filter-group" aria-label="时间轴分类">{(['all', ...Object.keys(categories)] as (Category | 'all')[]).map(c => <button key={c} className={`filter-chip ${filter === c ? 'selected' : ''}`} onClick={() => setFilter(c)}>{c === 'all' ? '全部' : <><span className="color-dot" style={{ background: categories[c].color }} />{categories[c].label}</>}</button>)}</div>{!compact && <label className="checkbox-label"><input type="checkbox" checked={onlyImportant} onChange={e => setOnlyImportant(e.target.checked)} />只看重要节点</label>}</div>
+    <div className="timeline-toolbar"><div className="filter-group" aria-label="时间轴分类"><button className={`filter-chip ${filter === 'all' ? 'selected' : ''}`} onClick={() => setFilter('all')}>全部</button>{categories.map(c => <button key={c.id} className={`filter-chip ${filter === c.id ? 'selected' : ''}`} onClick={() => setFilter(c.id)}><span className="color-dot" style={{ background: c.color }} />{c.label}</button>)}</div>{!compact && <label className="checkbox-label"><input type="checkbox" checked={onlyImportant} onChange={e => setOnlyImportant(e.target.checked)} />只看重要节点</label>}</div>
     {!compact && <div className="range-toolbar"><div className="range-controls"><button className="icon-button" aria-label="查看更早四年" onClick={() => setYear(year - 4)}><Icon name="chevron" className="reverse" size={17} /></button><span>{year} — {year + 3}</span><button className="icon-button" aria-label="查看更晚四年" onClick={() => setYear(year + 4)}><Icon name="chevron" size={17} /></button></div><label className="zoom-label">缩放<input aria-label="时间轴缩放" type="range" min=".7" max="2" step=".1" value={zoom} onChange={e => setZoom(Number(e.target.value))} /></label><button className={`quiet-button ${curve ? 'active' : ''}`} aria-pressed={curve} onClick={() => setCurve(!curve)}><Icon name="wallet" size={16} />资金轨迹</button></div>}
     <div ref={scroll} className="timeline-scroll" tabIndex={0} role="region" aria-label="可横向拖动的人生时间轴" onKeyDown={e => { if (e.target === e.currentTarget && ['ArrowLeft', 'ArrowRight'].includes(e.key)) { e.preventDefault(); scroll.current!.scrollLeft += e.key === 'ArrowLeft' ? -180 : 180 } }}
       onPointerDown={e => { if (e.pointerType !== 'mouse' || (e.target as HTMLElement).closest('button')) return; pan.current = { x: e.clientX, left: scroll.current!.scrollLeft, moved: false }; e.currentTarget.setPointerCapture(e.pointerId) }}
@@ -86,11 +90,11 @@ function Timeline({ journal, compact = false, open }: { journal: Journal; compac
           const { kind, item } = group[0]
           let x = compact ? 64 + index * 188 + (item.date > TODAY ? 92 : 0) : position(item.date)
           const lane = index % 2
-          const c = categories[item.category]
+          const c = categoryAppearance(categories.find(c => c.id === item.category) ?? categories[0])
           if (group.length > 1) return <button key={`cluster-${item.id}`} className={`timeline-node cluster lane-${lane}`} style={{ left: x, '--category': '#777e68', '--category-light': '#e9ebdf' } as CSSProperties} onClick={() => open({ type: 'cluster', items: group })}><span className="node-stem" /><span className="node-dot" /><span className="node-card"><span className="node-meta">{dateLabel(item.date)}<span>聚合节点</span></span><strong>这段日子的 {group.length} 个节点</strong><span className="node-category"><Icon name="book" size={13} />点击展开 · 保留各自日期</span></span></button>
           return <button key={item.id} className={`timeline-node lane-${lane} ${kind} importance-${kind === 'moment' ? (item as Moment).importance : 2}`} style={{ left: x, '--category': c.color, '--category-light': c.light } as CSSProperties} onClick={() => open(kind === 'moment' ? { type: 'moment', item: item as Moment } : { type: 'goal', item: item as Goal })}>
             <span className="node-stem" /><span className="node-dot">{kind === 'goal' ? <Icon name="flag" size={11} /> : (item as Moment).importance === 3 ? <Icon name="star" size={11} /> : null}</span>
-            <span className="node-card"><span className="node-meta">{dateLabel(item.date)}<span>{kind === 'goal' ? '计划' : importanceLabels[(item as Moment).importance]}</span></span><strong>{item.title}</strong><span className="node-category"><Icon name={c.icon} size={13} />{c.label}{kind === 'goal' && (item as Goal).budgetCents > 0 && <span className="node-amount">¥{yuan((item as Goal).budgetCents)}</span>}</span></span>
+            <span className="node-card"><span className="node-meta">{dateLabel(item.date)}<span>{kind === 'goal' ? '计划' : importanceLabels[(item as Moment).importance]}</span></span><strong>{item.title}</strong><span className="node-category"><Icon name={c.icon} size={13} /><span className="node-category-name" title={c.label}>{c.label}</span>{kind === 'goal' && (item as Goal).budgetCents > 0 && <span className="node-amount">¥{yuan((item as Goal).budgetCents)}</span>}</span></span>
           </button>
         })}
         {!visibleItems.length && <div className="timeline-empty"><Icon name="leaf" size={32} /><p>这段时间还没有节点</p><span>换个分类，或写下一个值得记住的日子。</span></div>}
@@ -112,7 +116,7 @@ function FinanceCurve({ funds }: { funds: Fund[] }) {
 }
 
 function GoalCard({ goal, open }: { goal: Goal; open: (panel: Panel) => void }) {
-  const c = categories[goal.category]
+  const c = useCategory(goal.category)
   return <button className="goal-card" onClick={() => open({ type: 'goal', item: goal })} style={{ '--category': c.color, '--category-light': c.light } as CSSProperties}>
     <span className="goal-icon"><Icon name={c.icon} size={24} /></span><span className="goal-copy"><span className="goal-card-top"><strong>{goal.title}</strong><span>{goal.progress}%</span></span><span className="goal-date">{goal.date.slice(0, 4)} 年 {Number(goal.date.slice(5, 7))} 月 · {goal.budgetCents ? `预算 ¥${yuan(goal.budgetCents)}` : '让习惯慢慢发生'}</span><span className="progress-track"><i style={{ width: `${goal.progress}%` }} /></span></span><Icon name="chevron" size={16} />
   </button>
@@ -123,6 +127,9 @@ function MomentForm({ item, fresh, save, sample = false }: { item: Moment; fresh
   const [pending, setPending] = useState(false)
   const [error, setError] = useState('')
   const [preview, setPreview] = useState(false)
+  const [manageCategories, setManageCategories] = useState(false)
+  const managerId = useId()
+  const { busy } = useCategories()
   const changedDate = !fresh && draft.date !== item.date
   const submit = async (event: FormEvent) => {
     event.preventDefault()
@@ -137,12 +144,13 @@ function MomentForm({ item, fresh, save, sample = false }: { item: Moment; fresh
   }
   return <form className="editor" onSubmit={submit}><div className="detail-tags"><CategoryTag category={draft.category} /><span className="importance-tag"><Icon name={draft.importance === 3 ? 'star' : 'sun'} size={14} />{importanceLabels[draft.importance]}</span></div>
     <label>这一天的标题<input required maxLength={120} value={draft.title} onChange={e => setDraft({ ...draft, title: e.target.value })} placeholder="有什么值得记住？" /></label>
-    <div className="form-grid"><label>发生日期<input required type="date" max={TODAY} value={draft.date} onChange={e => { setDraft({ ...draft, date: e.target.value }); setPreview(false) }} /></label><label>分类<select value={draft.category} onChange={e => setDraft({ ...draft, category: e.target.value as Category })}>{Object.entries(categories).map(([k, c]) => <option key={k} value={k}>{c.label}</option>)}</select></label></div>
+    <div className="form-grid"><label>发生日期<input required type="date" max={TODAY} value={draft.date} onChange={e => { setDraft({ ...draft, date: e.target.value }); setPreview(false) }} /></label><CategoryField value={draft.category} change={category => setDraft(current => ({ ...current, category }))} manage={() => setManageCategories(!manageCategories)} expanded={manageCategories} managerId={managerId} /></div>
+    {manageCategories && <CategoryManager id={managerId} onCreated={category => setDraft(current => ({ ...current, category }))} />}
     <label>对我有多重要<select value={draft.importance} onChange={e => setDraft({ ...draft, importance: Number(e.target.value) as Importance })}>{Object.entries(importanceLabels).map(([k, v]) => <option key={k} value={k}>{v}</option>)}</select></label>
     <label>发生了什么<textarea rows={3} value={draft.story} onChange={e => setDraft({ ...draft, story: e.target.value })} placeholder="记录事情本身，几句话就好。" /></label>
     <div className="reflection-field"><label><span><Icon name="edit" size={17} />留给自己的话 <small>感想 · 可稍后补写</small></span><textarea rows={5} value={draft.reflection} onChange={e => setDraft({ ...draft, reflection: e.target.value })} placeholder="当时的心情、后来想通的事，都可以留在这里。" /></label></div>
     {preview && <div className="notice">日期将从 {dateLabel(item.date)} 改为 {dateLabel(draft.date)}，节点位置随之更新。感想与资金安排不会改变；保存后可撤销。</div>}
-    {error && <p role="alert" className="form-error">{error}</p>}<div className="editor-footer"><span>{sample ? '样例体验 · 不写入个人手账' : '仅保存到此浏览器'}</span><button className="primary-button" disabled={pending} type="submit"><Icon name="check" size={17} />{pending ? '正在保存…' : changedDate && !preview ? '预览日期调整' : preview ? '确认调整并保存' : '收进手账'}</button></div>
+    {error && <p role="alert" className="form-error">{error}</p>}<div className="editor-footer"><span>{sample ? '样例体验 · 不写入个人手账' : '仅保存到此浏览器'}</span><button className="primary-button" disabled={pending || busy} type="submit"><Icon name="check" size={17} />{pending ? '正在保存…' : changedDate && !preview ? '预览日期调整' : preview ? '确认调整并保存' : '收进手账'}</button></div>
   </form>
 }
 
@@ -153,6 +161,9 @@ function GoalForm({ item, fresh, journal, save, sample = false }: { item: Goal; 
   const [error, setError] = useState('')
   const [pending, setPending] = useState(false)
   const [preview, setPreview] = useState(false)
+  const [manageCategories, setManageCategories] = useState(false)
+  const managerId = useId()
+  const { busy } = useCategories()
   const liquidFunds = journal.funds.filter(f => f.liquid)
   const liquidAmount = liquidFunds.reduce((sum, f) => sum + f.principalCents, 0)
   const available = liquidAmount - journal.goals.filter(g => g.id !== draft.id).reduce((sum, g) => sum + g.allocatedCents, 0)
@@ -171,13 +182,14 @@ function GoalForm({ item, fresh, journal, save, sample = false }: { item: Goal; 
     setPending(true); const ok = await save({ ...draft, title: draft.title.trim() }); setPending(false)
     if (!ok) setError('保存未完成，请重试。')
   }
-  return <form className="editor" onSubmit={submit}><label>我想完成的事<input required maxLength={120} value={draft.title} onChange={e => setDraft({ ...draft, title: e.target.value })} /></label><div className="form-grid"><label>希望完成的日期<input required type="date" min={TODAY} max="2100-12-31" value={draft.date} onChange={e => { setDraft({ ...draft, date: e.target.value }); setPreview(false) }} /></label><label>分类<select value={draft.category} onChange={e => setDraft({ ...draft, category: e.target.value as Category })}>{Object.entries(categories).map(([k, c]) => <option key={k} value={k}>{c.label}</option>)}</select></label></div>
+  return <form className="editor" onSubmit={submit}><label>我想完成的事<input required maxLength={120} value={draft.title} onChange={e => setDraft({ ...draft, title: e.target.value })} /></label><div className="form-grid"><label>希望完成的日期<input required type="date" min={TODAY} max="2100-12-31" value={draft.date} onChange={e => { setDraft({ ...draft, date: e.target.value }); setPreview(false) }} /></label><CategoryField value={draft.category} change={category => setDraft(current => ({ ...current, category }))} manage={() => setManageCategories(!manageCategories)} expanded={manageCategories} managerId={managerId} /></div>
+    {manageCategories && <CategoryManager id={managerId} onCreated={category => setDraft(current => ({ ...current, category }))} />}
     <label>为什么想做这件事<textarea rows={3} value={draft.description} onChange={e => setDraft({ ...draft, description: e.target.value })} /></label>
     <div className="form-grid"><label>预计需要 / 元<input type="number" min="0" max="100000000" step=".01" value={draft.budgetCents / 100} onChange={e => setDraft({ ...draft, budgetCents: cents(e.target.value) })} required /></label><label>已为它分配 / 元<input type="number" min="0" step=".01" value={draft.allocatedCents / 100} onChange={e => setDraft({ ...draft, allocatedCents: cents(e.target.value) })} required /></label></div>
     <p className="fine-print">预算为手动估计。原型将分配资金放在活期池中，不重复分配；十年定期无法用于到期前的目标。</p>
     {draft.budgetCents > 0 && <div className="forecast-box"><span className="eyebrow">为这个心愿，每月留一点</span><div className="forecast-number">{forecast.monthly === null ? '目标已临近' : <><small>¥</small>{exactYuan(forecast.monthly)}<span>/ 月</span></>}</div><p>{months} 次月末储蓄 · 活期池加权年化 {weightedRate.toFixed(2)}%<br />当前分配预计增长到 ¥{exactYuan(forecast.futureAllocated)}，剩余缺口 ¥{exactYuan(forecast.gap)}。</p><div className="form-grid"><label>每月生活开支 / 元<input aria-label="每月生活开支" type="number" min="0" step=".01" value={expense} onChange={e => setExpense(e.target.value)} /></label><label>每月固定义务 / 元<input aria-label="每月固定义务" type="number" min="0" step=".01" value={obligation} onChange={e => setObligation(e.target.value)} /></label></div><div className="income-line"><span>所需月可支配收入</span><strong>{forecast.monthly === null ? '先调整日期' : `¥${exactYuan(forecast.monthly + cents(expense) + cents(obligation))}`}</strong></div><p className="fine-print">本目标测算，不含其他目标的月储蓄。收入指税后可支配收入；开支和义务为临时试算，未记入账单。新增储蓄按同一活期收益持续计息。</p></div>}
     <label>自己记录的进度 · {draft.progress}%<input aria-label="目标进度" className="progress-input" type="range" min="0" max="100" value={draft.progress} onChange={e => setDraft({ ...draft, progress: Number(e.target.value) })} /></label>
-    {preview && <div className="notice">目标日期从 {dateLabel(item.date)} 调整到 {dateLabel(draft.date)}。上述月储蓄已按新日期重算；保存后可撤销。</div>}{error && <p role="alert" className="form-error">{error}</p>}<div className="editor-footer"><span>试算参考日：2026.10.05</span><button className="primary-button" disabled={pending} type="submit">{pending ? '正在保存…' : changedDate && !preview ? '预览日期调整' : preview ? '确认调整并保存' : '保存这个心愿'}</button></div>
+    {preview && <div className="notice">目标日期从 {dateLabel(item.date)} 调整到 {dateLabel(draft.date)}。上述月储蓄已按新日期重算；保存后可撤销。</div>}{error && <p role="alert" className="form-error">{error}</p>}<div className="editor-footer"><span>试算参考日：2026.10.05</span><button className="primary-button" disabled={pending || busy} type="submit">{pending ? '正在保存…' : changedDate && !preview ? '预览日期调整' : preview ? '确认调整并保存' : '保存这个心愿'}</button></div>
   </form>
 }
 
@@ -223,7 +235,7 @@ export default function App() {
   const loaded = useRef(false)
   useEffect(() => {
     let active = true
-    readJournal().then(saved => { if (active) { const next = saved?.schemaVersion === 1 ? saved : emptyJournal(); setJournal(next); personalJournal.current = next; setStatus('saved'); loaded.current = true } }).catch(() => { if (active) { setStatus('failed'); loadError.current = true; loaded.current = true } })
+    readJournal().then(saved => { if (active) { const next = withCategories(saved?.schemaVersion === 1 ? saved : emptyJournal()); setJournal(next); personalJournal.current = next; setStatus('saved'); loaded.current = true } }).catch(() => { if (active) { setStatus('failed'); loadError.current = true; loaded.current = true } })
     const network = () => setOnline(navigator.onLine)
     const timeline = () => { setPage('timeline'); window.scrollTo(0, 0) }
     const cacheError = () => setCacheFailed(true)
@@ -234,6 +246,7 @@ export default function App() {
   useEffect(() => { if (!toast) return; const timer = setTimeout(() => { setToast(''); setUndo(null) }, 10000); return () => clearTimeout(timer) }, [toast])
   const change = async (next: Journal, message = '已收进这台设备的手账', close = true, allowUndo = true) => {
     if (saving.current || !loaded.current || loadError.current) return false
+    try { next = withCategories(next) } catch { return false }
     if (sampleMode) {
       if (allowUndo) setUndo(journal)
       setJournal(next); setToast('样例已更新，仅在本次体验中保留'); if (close) setPanel(null); return true
@@ -250,6 +263,12 @@ export default function App() {
   const saveMoment = async (item: Moment) => change({ ...journal, moments: journal.moments.some(m => m.id === item.id) ? journal.moments.map(m => m.id === item.id ? item : m) : [...journal.moments, item] })
   const saveGoal = async (item: Goal) => change({ ...journal, goals: journal.goals.some(g => g.id === item.id) ? journal.goals.map(g => g.id === item.id ? item : g) : [...journal.goals, item] })
   const saveFund = async (item: Fund) => change({ ...journal, funds: journal.funds.some(f => f.id === item.id) ? journal.funds.map(f => f.id === item.id ? item : f) : [...journal.funds, item] })
+  const saveCategories = async (categories: CategoryDefinition[]) => {
+    if (!isCategoryDefinitions(categories)) return false
+    const ids = new Set(categories.map(c => c.id))
+    if ([...journal.moments, ...journal.goals].some(item => !ids.has(item.category))) return false
+    return change({ ...journal, categories }, '分类已保存，时间轴也已更新', false)
+  }
   const exportData = () => {
     const url = URL.createObjectURL(new Blob([JSON.stringify(journal, null, 2)], { type: 'application/json' }))
     const link = document.createElement('a'); link.href = url; link.download = `HawTend-${sampleMode ? '样例手账' : '我的手账'}-${TODAY}.json`; link.click(); URL.revokeObjectURL(url)
@@ -260,8 +279,8 @@ export default function App() {
     else { personalJournal.current = journal; setJournal(seedJournal()) }
     setSampleMode(!sampleMode); setPage('home'); setPanel(null); setToast(''); setUndo(null); setStatus('saved'); window.scrollTo(0, 0)
   }
-  const newMoment = () => setPanel({ type: 'moment', fresh: true, item: { id: crypto.randomUUID(), title: '', date: TODAY, category: 'life', importance: 1, story: '', reflection: '' } })
-  const newGoal = () => setPanel({ type: 'goal', fresh: true, item: { id: crypto.randomUUID(), title: '', date: '2027-12-31', category: 'life', budgetCents: 0, allocatedCents: 0, progress: 0, description: '' } })
+  const newMoment = () => setPanel({ type: 'moment', fresh: true, item: { id: crypto.randomUUID(), title: '', date: TODAY, category: journalCategories(journal)[0].id, importance: 1, story: '', reflection: '' } })
+  const newGoal = () => setPanel({ type: 'goal', fresh: true, item: { id: crypto.randomUUID(), title: '', date: '2027-12-31', category: journalCategories(journal)[0].id, budgetCents: 0, allocatedCents: 0, progress: 0, description: '' } })
   const newFund = () => setPanel({ type: 'fund', fresh: true, item: { id: crypto.randomUUID(), name: '', principalCents: 0, rate: 0, startDate: TODAY, maturityDate: '', mode: 'compound', liquid: true } })
   const navigate = (id: Page) => { setPage(id); window.scrollTo(0, 0) }
   const total = journal.funds.reduce((sum, f) => sum + f.principalCents, 0)
@@ -270,7 +289,7 @@ export default function App() {
   const latest = [...journal.moments].sort((a, b) => b.date.localeCompare(a.date))[0]
   const disabled = status === 'loading' || status === 'saving' || loadError.current
   const isBlank = !journal.moments.length && !journal.goals.length && !journal.funds.length
-  return <div className="app-shell">
+  return <CategoryProvider journal={journal} busy={disabled} save={saveCategories}><div className="app-shell">
     <aside className="sidebar"><button className="brand" onClick={() => navigate('home')} aria-label="HawTend，返回我的手账"><span className="brand-symbol"><BrandMark size={36} /></span><span>HawTend<small>照料生活，慢慢生长</small></span></button><span className="sidebar-label">属于你的日子</span><nav aria-label="主要导航">{navItems.map(n => <button key={n.id} className={`nav-item ${page === n.id ? 'active' : ''}`} aria-current={page === n.id ? 'page' : undefined} onClick={() => navigate(n.id)}><Icon name={n.icon} />{n.label}{page === n.id && <span className="nav-dot" />}</button>)}</nav><div className="sidebar-note"><Icon name="sprout" size={27} /><p>不必把每一天填满，<br />慢慢走，也是在向前。</p><span>给未来的自己</span></div><div className="sidebar-bottom"><button className="settings-link" onClick={() => setPanel({ type: 'settings' })}><Icon name="settings" size={18} />手账设置</button><div className="profile"><span className="avatar">我</span><div><strong>我的人生手账</strong><small>{sampleMode ? "样例体验 · 虚构数据" : "个人空间 · 本机手账"}</small></div></div></div></aside>
     <main className="main"><header className="topbar"><div className="breadcrumb">我的空间<span>/</span>{navItems.find(n => n.id === page)?.label}</div><span className="mobile-brand"><BrandMark size={28} />HawTend</span><div className="topbar-actions"><span className={`save-status ${status === 'failed' ? 'failed' : ''}`} role="status"><span className="status-dot" />{sampleMode ? '样例体验' : status === 'loading' ? '正在打开手账' : status === 'saving' ? '正在保存' : status === 'failed' ? '本地保存不可用' : !online ? '离线 · 本机保存' : '仅本机保存'}</span><button className="icon-button mobile-settings" aria-label="手账设置" onClick={() => setPanel({ type: 'settings' })}><Icon name="settings" size={18} /></button><button className="primary-button top-record" disabled={disabled} onClick={() => setPanel({ type: 'new' })}><Icon name="plus" size={17} />记下一刻</button></div></header>
       <div className="content"><div className="prototype-note"><span>{sampleMode ? '样例手账 · 虚构内容' : '我的手账 · 本机空间'}</span><button className="text-button" disabled={disabled} onClick={switchSample}>{sampleMode ? '回到我的手账' : '看看样例'}<Icon name="arrow" size={13} /></button></div>
@@ -297,8 +316,8 @@ export default function App() {
       {panel.type === 'goal' && <GoalForm key={panel.item.id} item={panel.item} fresh={panel.fresh} journal={journal} save={saveGoal} sample={sampleMode} />}
       {panel.type === 'fund' && <FundForm key={panel.item.id} item={panel.item} journal={journal} save={saveFund} />}
       {panel.type === 'new' && <div className="new-options"><button onClick={newMoment}><span className="option-icon"><Icon name="book" size={26} /></span><span><strong>值得记住的日子</strong><small>记录事情，也记录当时的心情</small></span><Icon name="arrow" size={19} /></button><button onClick={newGoal}><span className="option-icon blue"><Icon name="flag" size={26} /></span><span><strong>对未来的一个期待</strong><small>放上时间轴，慢慢计划与实现</small></span><Icon name="arrow" size={19} /></button></div>}
-      {panel.type === 'settings' && <div className="settings-panel"><p className="settings-intro">三种生活的底色，试试哪一种更像你。<br /><span>HawTend · 好好照料生活，也记录慢慢长大的自己。</span></p><div className="theme-options">{([{ id: 'paper', title: '暖纸手账', note: '纸色与鼠尾草绿，安静而有温度', colors: ['#f5f2eb', '#566958', '#c79265'] }, { id: 'forest', title: '森林笔记', note: '浅雾绿与深林色，清新、自然', colors: ['#edf1e9', '#41654f', '#94a881'] }, { id: 'dusk', title: '暮色日记', note: '浅燕麦与梅子色，柔软而内敛', colors: ['#f4eef0', '#805d70', '#c1949d'] }] as const).map(t => <button key={t.id} disabled={disabled} className={`theme-option ${journal.theme === t.id ? 'chosen' : ''}`} aria-pressed={journal.theme === t.id} onClick={() => change({ ...journal, theme: t.id }, '手账配色已保存到本机', false)}><span className="swatches">{t.colors.map(c => <i key={c} style={{ background: c }} />)}</span><strong>{t.title}</strong><span>{t.note}</span>{journal.theme === t.id && <Icon name="check" size={17} />}</button>)}</div><div className="settings-storage"><Icon name="book" size={25} /><div><h3>{sampleMode ? "正在体验样例手账" : "样例和你的手账，分别收藏"}</h3><p>新手账从空白开始。样例只用于体验，修改不会加入个人记录。</p><button className="text-button" disabled={disabled} onClick={switchSample}>{sampleMode ? "回到我的手账" : "查看样例手账"}<Icon name="arrow" size={16} /></button></div></div><div className="settings-storage"><Icon name="cloud" size={25} /><div><h3>这里是本地设计原型</h3><p>云同步尚未接入。编辑仅存于当前浏览器，不会同步到另一台设备。浏览器清理可能删除本地内容，可以先导出留存。</p></div></div><button className="quiet-button export-button" onClick={exportData}><Icon name="download" size={18} />{sampleMode ? "导出样例手账 JSON" : "导出我的手账 JSON"}</button><p className="fine-print">导入恢复、账户登录、真实账单与健康记录在后续分期实现。请先用虚构内容体验流程。</p></div>}
+      {panel.type === 'settings' && <div className="settings-panel"><p className="settings-intro">三种生活的底色，试试哪一种更像你。<br /><span>HawTend · 好好照料生活，也记录慢慢长大的自己。</span></p><div className="theme-options">{([{ id: 'paper', title: '暖纸手账', note: '纸色与鼠尾草绿，安静而有温度', colors: ['#f5f2eb', '#566958', '#c79265'] }, { id: 'forest', title: '森林笔记', note: '浅雾绿与深林色，清新、自然', colors: ['#edf1e9', '#41654f', '#94a881'] }, { id: 'dusk', title: '暮色日记', note: '浅燕麦与梅子色，柔软而内敛', colors: ['#f4eef0', '#805d70', '#c1949d'] }] as const).map(t => <button key={t.id} disabled={disabled} className={`theme-option ${journal.theme === t.id ? 'chosen' : ''}`} aria-pressed={journal.theme === t.id} onClick={() => change({ ...journal, theme: t.id }, '手账配色已保存到本机', false)}><span className="swatches">{t.colors.map(c => <i key={c} style={{ background: c }} />)}</span><strong>{t.title}</strong><span>{t.note}</span>{journal.theme === t.id && <Icon name="check" size={17} />}</button>)}</div><CategoryManager /><div className="settings-storage"><Icon name="book" size={25} /><div><h3>{sampleMode ? "正在体验样例手账" : "样例和你的手账，分别收藏"}</h3><p>新手账从空白开始。样例只用于体验，修改不会加入个人记录。</p><button className="text-button" disabled={disabled} onClick={switchSample}>{sampleMode ? "回到我的手账" : "查看样例手账"}<Icon name="arrow" size={16} /></button></div></div><div className="settings-storage"><Icon name="cloud" size={25} /><div><h3>这里是本地设计原型</h3><p>云同步尚未接入。编辑仅存于当前浏览器，不会同步到另一台设备。浏览器清理可能删除本地内容，可以先导出留存。</p></div></div><button className="quiet-button export-button" onClick={exportData}><Icon name="download" size={18} />{sampleMode ? "导出样例手账 JSON" : "导出我的手账 JSON"}</button><p className="fine-print">导入恢复、账户登录、真实账单与健康记录在后续分期实现。请先用虚构内容体验流程。</p></div>}
     </Modal>}
     {toast && <div className="toast" role="status"><Icon name="check" size={18} /><span>{toast}</span>{undo && <button onClick={async () => { const previous = undo; if (previous && await change(previous, '已撤销上一次修改', false, false)) setUndo(null) }}>撤销</button>}<button className="icon-button" aria-label="关闭保存提示" onClick={() => { setToast(''); setUndo(null) }}><Icon name="close" size={15} /></button></div>}
-  </div>
+  </div></CategoryProvider>
 }
