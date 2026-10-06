@@ -167,7 +167,7 @@ internal sealed class DesktopContext : ApplicationContext
     internal void OpenOrFocus()
     {
         if (closing) return;
-        if (shell != null && !shell.IsDisposed) { DesktopWindows.Focus(shell.Handle); return; }
+        if (shell != null && !shell.IsDisposed) { shell.OpenOrFocus(); return; }
         shell = new DesktopShell(address, browserData, debugPort, OpenLegacy);
         shell.FormClosed += delegate { RequestExit(); };
         hasOpened = true; shell.Show();

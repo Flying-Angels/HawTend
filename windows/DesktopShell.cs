@@ -29,6 +29,7 @@ internal sealed class DesktopShell : Form
     private Rectangle normalBounds;
     private FormWindowState previousState = FormWindowState.Normal;
     private bool changingState;
+    private FormWindowState beforeMinimized = FormWindowState.Normal;
 
     internal DesktopShell(string address, string dataFolder, int debugPort, Action openLegacy)
     {
@@ -107,10 +108,16 @@ internal sealed class DesktopShell : Form
     }
     private void ChangeState(FormWindowState next)
     {
+        if (next == FormWindowState.Minimized) beforeMinimized = WindowState;
         if (WindowState == FormWindowState.Normal) normalBounds = Bounds;
         Rectangle restore = normalBounds; changingState = true;
         try { WindowState = next; if (next == FormWindowState.Normal && !restore.IsEmpty) Bounds = restore; }
         finally { changingState = false; previousState = WindowState; LayoutWindow(); }
+    }
+    internal void OpenOrFocus()
+    {
+        if (WindowState == FormWindowState.Minimized) ChangeState(beforeMinimized);
+        DesktopWindows.Focus(Handle);
     }
 
     private async System.Threading.Tasks.Task InitializeView()
@@ -225,6 +232,7 @@ internal sealed class DesktopShell : Form
             int command = m.WParam.ToInt32() & 0xfff0;
             if (command == 0xf030 || command == 0xf020 || command == 0xf120)
             {
+                if (command == 0xf020) beforeMinimized = WindowState;
                 if (WindowState == FormWindowState.Normal) normalBounds = Bounds;
                 Rectangle restore = normalBounds; changingState = true;
                 try { base.WndProc(ref m); if (WindowState == FormWindowState.Normal && !restore.IsEmpty) Bounds = restore; }
