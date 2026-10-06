@@ -166,10 +166,19 @@ svg { vertical-align: middle; }
 input[type='checkbox'] { accent-color: var(--accent); width: 16px; height: 16px; }
 .range-toolbar { display: flex; gap: 22px; align-items: center; justify-content: space-between; margin-top: 18px; padding: 8px 0 12px; border-top: 1px solid var(--line); }
 .range-controls { display: flex; gap: 8px; align-items: center; font-family: var(--number); font-size: 13px; }
+.range-period { display: inline-flex; align-items: center; justify-content: center; gap: 8px; min-height: 40px; padding: 6px 10px; border: 1px solid var(--line); border-radius: 6px; color: var(--ink); white-space: nowrap; }
+.range-period:hover { background: var(--accent-light); border-color: var(--accent-light); }
+.range-chevron { transform: rotate(90deg); color: var(--muted); }
+.range-editor-hint { font-size: 11px; line-height: 1.8; color: var(--muted); margin: 14px 0 24px; }
+.range-preset-group > span { font-size: 12px; color: var(--muted); }
+.range-preset-group > div { display: flex; flex-wrap: wrap; gap: 8px; margin: 12px 0 24px; }
+.range-preset-group .filter-chip { border-color: var(--line); }
+.range-preset-group .filter-chip.selected { border-color: var(--accent-light); }
 .reverse { transform: rotate(180deg); }
 .zoom-label { display: flex; gap: 14px; align-items: center; font-size: 10px; color: var(--muted); margin-left: auto; }
 input[type='range'] { accent-color: var(--accent); height: 24px; cursor: pointer; }
 .zoom-label input { width: 94px; }
+.zoom-label output { min-width: 42px; font-family: var(--number); font-size: 12px; white-space: nowrap; }
 .expanded .timeline-canvas { height: 375px; }
 .expanded .axis-line { top: 205px; }
 .expanded .axis-origin, .expanded .axis-future { top: 220px; }
@@ -474,8 +483,11 @@ input[type='range'] { accent-color: var(--accent); height: 24px; cursor: pointer
   .range-toolbar { gap: 7px; flex-wrap: wrap; margin-top: 13px; padding-top: 6px; }
   .range-controls { gap: 3px; font-size: 12px; }
   .range-controls .icon-button { min-width: 44px; }
-  .zoom-label { font-size: 9px; margin-left: 0; gap: 6px; }
-  .zoom-label input { width: 58px; }
+  .range-period { gap: 5px; min-height: 44px; padding: 6px 8px; }
+  .zoom-label { font-size: 10px; margin-left: 0; gap: 9px; flex: 1 0 100%; order: 1; padding: 6px 0; }
+  .zoom-label input { flex: 1; min-width: 80px; width: auto; }
+  .zoom-label output { min-width: 44px; text-align: right; }
+  .range-toolbar > .quiet-button { margin-left: auto; }
   .range-toolbar > .quiet-button { min-height: 34px; font-size: 9px; padding: 7px 9px; }
   .timeline-bottom-note { flex-wrap: wrap; padding: 22px 20px; gap: 14px; }
   .timeline-bottom-note > div { flex: 1; min-width: 190px; }

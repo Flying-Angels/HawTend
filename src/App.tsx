@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useId, useRef, useState } from 'react'
+import { useCallback, useEffect, useId, useLayoutEffect, useRef, useState } from 'react'
 import type { CSSProperties, FormEvent, ReactNode } from 'react'
 import { BrandMark, Icon, Landscape } from './Icons'
 import { emptyJournal, importanceLabels, seedJournal } from './model'
@@ -7,6 +7,8 @@ import { CategoryField, CategoryManager, CategoryProvider, useCategories, useCat
 import { categoryAppearance, isCategoryDefinitions, journalCategories, withCategories } from './categories'
 import { cents, exactYuan, futureValue, monthlySaving, monthsUntil, yuan } from './finance'
 import { readJournal, writeJournal } from './storage'
+import { MAX_TIMELINE_YEAR, MAX_TIMELINE_YEARS, MIN_TIMELINE_YEAR, timelineBounds, timelineMarks, timelineRange } from './timeline-range'
+import type { TimelineRange } from './timeline-range'
 
 const TODAY = '2026-10-05'
 const dateLabel = (date: string) => date.replaceAll('-', '.')
@@ -46,24 +48,54 @@ function Modal({ title, subtitle, children, close }: { title: string; subtitle?:
   </div></div>
 }
 
+function TimelineRangeEditor({ range, apply, close }: { range: TimelineRange; apply: (range: TimelineRange) => void; close: () => void }) {
+  const [startYear, setStartYear] = useState(String(range.startYear))
+  const [endYear, setEndYear] = useState(String(range.startYear + range.years - 1))
+  const [error, setError] = useState('')
+  const submit = (event: FormEvent) => {
+    event.preventDefault()
+    const first = Number(startYear), last = Number(endYear)
+    if (!startYear.trim() || !endYear.trim() || !Number.isInteger(first) || !Number.isInteger(last) || first < MIN_TIMELINE_YEAR || last > MAX_TIMELINE_YEAR || first > MAX_TIMELINE_YEAR || last < MIN_TIMELINE_YEAR) { setError(`请填写 ${MIN_TIMELINE_YEAR}–${MAX_TIMELINE_YEAR} 之间的整数年份。`); return }
+    if (last < first) { setError('结束年份不能早于起始年份。'); return }
+    if (last - first + 1 > MAX_TIMELINE_YEARS) { setError(`一次最多浏览 ${MAX_TIMELINE_YEARS} 年，请缩短时间范围。`); return }
+    apply({ startYear: first, years: last - first + 1 })
+  }
+  const preset = (years: number) => {
+    const first = Number(startYear)
+    const next = timelineRange(startYear.trim() && Number.isInteger(first) ? first : range.startYear, years)
+    setStartYear(String(next.startYear)); setEndYear(String(next.startYear + years - 1)); setError('')
+  }
+  return <Modal title="想看哪一段日子？" subtitle="选一段时间，把走过的路和未来的期待放在一起。" close={close}>
+    <form className="editor range-editor" onSubmit={submit} noValidate>
+      <div className="form-grid"><label>起始年份<input type="number" min={MIN_TIMELINE_YEAR} max={MAX_TIMELINE_YEAR} step="1" inputMode="numeric" value={startYear} onChange={e => { setStartYear(e.target.value); setError('') }} /></label><label>结束年份<input type="number" min={MIN_TIMELINE_YEAR} max={MAX_TIMELINE_YEAR} step="1" inputMode="numeric" value={endYear} onChange={e => { setEndYear(e.target.value); setError('') }} /></label></div>
+      <p className="range-editor-hint">包含起止两年，例如 2026–2029，共 4 年。</p>
+      <div className="range-preset-group" aria-label="快捷时间跨度"><span>快速选择</span><div>{[1, 3, 5, 10, 20, 50, 100].map(years => <button type="button" key={years} className={`filter-chip ${Number(endYear) - Number(startYear) + 1 === years ? 'selected' : ''}`} onClick={() => preset(years)}>{years} 年</button>)}</div></div>
+      {error && <p className="form-error" role="alert">{error}</p>}
+      <div className="editor-footer"><button type="button" className="quiet-button" onClick={close}>取消</button><button type="submit" className="primary-button">应用时间范围<Icon name="arrow" size={16} /></button></div>
+    </form>
+  </Modal>
+}
+
 function Timeline({ journal, compact = false, open }: { journal: Journal; compact?: boolean; open: (panel: Panel) => void }) {
   const { categories } = useCategories()
   const [filter, setFilter] = useState<Category | 'all'>('all')
   useEffect(() => { if (filter !== 'all' && !categories.some(c => c.id === filter)) setFilter('all') }, [categories, filter])
   const [onlyImportant, setOnlyImportant] = useState(false)
-  const [zoom, setZoom] = useState(1)
-  const [year, setYear] = useState(2026)
+  const [range, setRange] = useState<TimelineRange>({ startYear: 2026, years: 4 })
+  const [editingRange, setEditingRange] = useState(false)
+  const closeRange = useCallback(() => setEditingRange(false), [])
   const [curve, setCurve] = useState(false)
   const scroll = useRef<HTMLDivElement>(null)
+  const scrollTarget = useRef<'start' | 'today' | null>(null)
   const pan = useRef<{ x: number; left: number; moved: boolean } | null>(null)
   const items = [
     ...journal.moments.map(m => ({ kind: 'moment' as const, item: m })),
     ...journal.goals.map(g => ({ kind: 'goal' as const, item: g })),
   ].filter(({ kind, item }) => (filter === 'all' || item.category === filter) && (!onlyImportant || kind === 'goal' || (item as Moment).importance >= 2)).sort((a, b) => a.item.date.localeCompare(b.item.date))
-  const width = compact ? Math.max(1060, items.length * 188 + 260) : 1900 * zoom
-  const start = Date.parse(`${year}-01-01`), end = Date.parse(`${year + 4}-01-01`)
-  const position = (date: string) => 64 + (Date.parse(date) - start) / (end - start) * (width - 128)
-  const visibleItems = compact ? items : items.filter(({ item }) => Date.parse(item.date) >= start && Date.parse(item.date) <= end)
+  const width = compact ? Math.max(1060, items.length * 188 + 260) : 1900
+  const { start, end } = timelineBounds(range)
+  const position = (date: string) => 64 + (Date.parse(date) - start) / (end - start) * (width - 252)
+  const visibleItems = compact ? items : items.filter(({ item }) => Date.parse(item.date) >= start && Date.parse(item.date) < end)
   const groups: (typeof items)[] = []
   visibleItems.forEach(entry => {
     const group = groups[groups.length - 1]
@@ -71,13 +103,20 @@ function Timeline({ journal, compact = false, open }: { journal: Journal; compac
     else groups.push([entry])
   })
   const todayX = compact ? 80 + journal.moments.filter(m => m.date < TODAY && (filter === 'all' || m.category === filter) && (!onlyImportant || m.importance >= 2)).length * 188 : position(TODAY)
-  const scrollToday = () => scroll.current?.scrollTo({ left: Math.max(0, todayX - scroll.current.clientWidth * .4), behavior: matchMedia('(prefers-reduced-motion: reduce)').matches ? 'instant' : 'smooth' })
-  const returnToday = () => { setYear(2026); requestAnimationFrame(scrollToday) }
+  useLayoutEffect(() => {
+    if (!scroll.current || !scrollTarget.current) return
+    const target = scrollTarget.current
+    scrollTarget.current = null
+    scroll.current.scrollTo({ left: target === 'today' ? Math.max(0, todayX - scroll.current.clientWidth * .4) : 0, behavior: target === 'today' && !matchMedia('(prefers-reduced-motion: reduce)').matches ? 'smooth' : 'instant' })
+  }, [range, todayX])
+  const changeRange = (next: TimelineRange) => { scrollTarget.current = 'start'; setRange(next) }
+  const returnToday = () => { scrollTarget.current = 'today'; setRange(timelineRange(Number(TODAY.slice(0, 4)), range.years)) }
+  const lastYear = range.startYear + range.years - 1
   const isEmpty = visibleItems.length === 0
   return <section className={`timeline-section ${compact ? 'compact' : 'expanded'}${isEmpty ? ' is-empty' : ''}`}>
     <div className="section-heading"><div><span className="eyebrow">THE DAYS THAT MAKE YOU</span><h2>{compact ? '一路走来，也一路向前' : '每一个节点，都是你的一部分'}</h2></div>{compact ? <button className="text-button" onClick={() => { window.dispatchEvent(new Event('open-timeline')) }}>展开时间轴<Icon name="arrow" size={16} /></button> : <button className="quiet-button" onClick={returnToday}><Icon name="sun" size={16} />回到今天</button>}</div>
     <div className="timeline-toolbar"><div className="filter-group" aria-label="时间轴分类"><button className={`filter-chip ${filter === 'all' ? 'selected' : ''}`} onClick={() => setFilter('all')}>全部</button>{categories.map(c => <button key={c.id} className={`filter-chip ${filter === c.id ? 'selected' : ''}`} onClick={() => setFilter(c.id)}><span className="color-dot" style={{ background: c.color }} />{c.label}</button>)}</div>{!compact && <label className="checkbox-label"><input type="checkbox" checked={onlyImportant} onChange={e => setOnlyImportant(e.target.checked)} />只看重要节点</label>}</div>
-    {!compact && <div className="range-toolbar"><div className="range-controls"><button className="icon-button" aria-label="查看更早四年" onClick={() => setYear(year - 4)}><Icon name="chevron" className="reverse" size={17} /></button><span>{year} — {year + 3}</span><button className="icon-button" aria-label="查看更晚四年" onClick={() => setYear(year + 4)}><Icon name="chevron" size={17} /></button></div><label className="zoom-label">缩放<input aria-label="时间轴缩放" type="range" min=".7" max="2" step=".1" value={zoom} onChange={e => setZoom(Number(e.target.value))} /></label><button className={`quiet-button ${curve ? 'active' : ''}`} aria-pressed={curve} onClick={() => setCurve(!curve)}><Icon name="wallet" size={16} />资金轨迹</button></div>}
+    {!compact && <div className="range-toolbar"><div className="range-controls"><button className="icon-button" aria-label="上一段时间" title={`向前查看 ${range.years} 年`} disabled={range.startYear === MIN_TIMELINE_YEAR} onClick={() => changeRange(timelineRange(range.startYear - range.years, range.years))}><Icon name="chevron" className="reverse" size={17} /></button><button className="range-period" title="设置起止年份" aria-label={`设置时间范围，${range.startYear} 至 ${lastYear}，共 ${range.years} 年`} onClick={() => setEditingRange(true)}><span>{range.startYear === lastYear ? `${range.startYear} 年` : `${range.startYear} — ${lastYear}`}</span><Icon name="chevron" className="range-chevron" size={12} /></button><button className="icon-button" aria-label="下一段时间" title={`向后查看 ${range.years} 年`} disabled={lastYear === MAX_TIMELINE_YEAR} onClick={() => changeRange(timelineRange(range.startYear + range.years, range.years))}><Icon name="chevron" size={17} /></button></div><label className="zoom-label"><span>跨度</span><input aria-label="时间跨度" aria-valuetext={`共 ${range.years} 年`} type="range" min="1" max={MAX_TIMELINE_YEARS} step="1" value={range.years} onChange={e => changeRange(timelineRange(range.startYear, Number(e.target.value)))} /><output>{range.years} 年</output></label><button className={`quiet-button ${curve ? 'active' : ''}`} aria-pressed={curve} onClick={() => setCurve(!curve)}><Icon name="wallet" size={16} />资金轨迹</button></div>}
     {isEmpty && <div className="timeline-empty" role="status"><Icon name="leaf" size={28} /><div><p>这段时间还没有节点</p><span>换个分类，或写下一个值得记住的日子。</span></div></div>}
     <div ref={scroll} className="timeline-scroll" tabIndex={0} role="region" aria-label="可横向拖动的人生时间轴" onKeyDown={e => { if (e.target === e.currentTarget && ['ArrowLeft', 'ArrowRight'].includes(e.key)) { e.preventDefault(); scroll.current!.scrollLeft += e.key === 'ArrowLeft' ? -180 : 180 } }}
       onPointerDown={e => { if (e.pointerType !== 'mouse' || (e.target as HTMLElement).closest('button')) return; pan.current = { x: e.clientX, left: scroll.current!.scrollLeft, moved: false }; e.currentTarget.setPointerCapture(e.pointerId) }}
@@ -86,7 +125,7 @@ function Timeline({ journal, compact = false, open }: { journal: Journal; compac
       <div className="timeline-canvas" style={{ width }}>
         <div className="axis-line" />
         <span className="axis-origin">过去</span><span className="axis-future">未来 <Icon name="arrow" size={16} /></span>
-        {!compact && Array.from({ length: 4 }, (_, i) => <span className="year-mark" key={i} style={{ left: position(`${year + i}-01-01`) }}>{year + i}</span>)}
+        {!compact && timelineMarks(range, width - 252).map(mark => <span className="year-mark" key={mark.date} style={{ left: position(mark.date) }}>{mark.label}</span>)}
         {todayX >= 0 && todayX <= width && <div className="today-marker" style={{ left: todayX }}><span>今天 · 10.05</span><i /></div>}
         {groups.map((group, index) => {
           const { kind, item } = group[0]
@@ -103,6 +142,7 @@ function Timeline({ journal, compact = false, open }: { journal: Journal; compac
     </div>
     <div className="timeline-caption"><span><span className="legend-dot solid" />已发生 <span className="legend-dot dashed" />未来计划</span><span>{compact ? '节点概览 · 间距不代表时长' : '左右拖动浏览 · 点击查看详情'}</span></div>
     {curve && <FinanceCurve funds={journal.funds} />}
+    {editingRange && <TimelineRangeEditor range={range} apply={next => { changeRange(next); closeRange() }} close={closeRange} />}
   </section>
 }
 
