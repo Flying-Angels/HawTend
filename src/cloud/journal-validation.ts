@@ -6,6 +6,7 @@ const themes = new Set(['paper', 'forest', 'dusk'])
 const modes = new Set(['simple', 'compound'])
 const object = (value: unknown): value is Record<string, unknown> => value !== null && typeof value === 'object' && !Array.isArray(value)
 const text = (value: unknown): value is string => typeof value === 'string'
+const textFormat = (value: unknown): boolean => value === undefined || value === 'markdown'
 const money = (value: unknown): value is number => typeof value === 'number' && Number.isSafeInteger(value) && value >= 0
 const boundedNumber = (value: unknown, max: number): value is number => typeof value === 'number' && Number.isFinite(value) && value >= 0 && value <= max
 const date = (value: unknown): value is string => {
@@ -30,7 +31,8 @@ export function isJournal(value: unknown): value is Journal {
   if (value.categories !== undefined && !isCategoryDefinitions(value.categories)) return false
   const categories = new Set(value.categories === undefined ? legacyCategories : value.categories.map(c => c.id))
   return records(value.moments, row => text(row.title) && date(row.date) && text(row.category) && categories.has(row.category)
-    && [1, 2, 3].includes(row.importance as number) && text(row.story) && text(row.reflection))
+    && [1, 2, 3].includes(row.importance as number) && text(row.story) && text(row.reflection)
+    && textFormat(row.storyFormat) && textFormat(row.reflectionFormat))
     && records(value.goals, row => text(row.title) && date(row.date) && text(row.category) && categories.has(row.category)
       && money(row.budgetCents) && money(row.allocatedCents) && row.allocatedCents <= row.budgetCents
       && boundedNumber(row.progress, 100) && text(row.description))

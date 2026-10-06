@@ -115,19 +115,19 @@ svg { vertical-align: middle; }
 .node-card strong { display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; font-size: 13px; line-height: 1.5; margin: 8px 0 6px; font-weight: 500; height: 39px; overflow-wrap: anywhere; }
 .node-category { display: flex; align-items: center; gap: 4px; font-size: 10px; color: var(--category); }
 .node-amount { margin-left: auto; font-family: var(--number); }
-.node-stem { position: absolute; left: 19px; top: 108px; height: 20px; width: 1px; background: var(--category-light); }
-.node-dot { position: absolute; display: grid; place-items: center; left: 14px; top: 121px; width: 11px; height: 11px; background: var(--category); border: 2px solid var(--surface); color: var(--surface); border-radius: 50%; }
-.importance-3 .node-dot { width: 17px; height: 17px; left: 11px; top: 118px; }
-.goal .node-dot { background: var(--surface); color: var(--category); border: 1.5px solid var(--category); width: 16px; height: 16px; top: 119px; left: 12px; }
+.node-stem { position: absolute; left: var(--node-anchor, 20px); top: 108px; height: 20px; width: 1px; background: var(--category-light); }
+.node-dot { position: absolute; display: grid; place-items: center; left: calc(var(--node-anchor, 20px) - 5px); top: 122px; width: 11px; height: 11px; background: var(--category); border: 2px solid var(--surface); color: var(--surface); border-radius: 50%; }
+.importance-3 .node-dot { width: 17px; height: 17px; left: calc(var(--node-anchor, 20px) - 8px); top: 119px; }
+.goal .node-dot { background: var(--surface); color: var(--category); border: 1.5px solid var(--category); width: 16px; height: 16px; top: 119.5px; left: calc(var(--node-anchor, 20px) - 7.5px); }
 .goal .node-card { border-style: dashed; }
 .timeline-node.lane-1 { top: 177px; }
-.lane-1 .node-stem { top: -37px; height: 37px; }
-.lane-1 .node-dot { top: -45px; }
-.lane-1.importance-3 .node-dot { top: -48px; }
-.lane-1.goal .node-dot { top: -47px; }
-.today-marker { position: absolute; top: 3px; bottom: 10px; border-left: 1px dashed #c8b59a; width: 1px; z-index: 1; pointer-events: none; }
+.lane-1 .node-stem { top: -39px; height: 39px; }
+.lane-1 .node-dot { top: -44px; }
+.lane-1.importance-3 .node-dot { top: -47px; }
+.lane-1.goal .node-dot { top: -46.5px; }
+.today-marker { position: absolute; top: 0; bottom: 10px; border-left: 1px dashed #c8b59a; width: 1px; z-index: 1; pointer-events: none; }
 .today-marker > span { position: absolute; left: 0; top: 7px; transform: translateX(-50%); white-space: nowrap; font-size: 9px; color: #8e6b43; padding: 5px 9px; border-radius: 5px; background: #f5ecdc; }
-.today-marker > i { position: absolute; width: 7px; height: 7px; border-radius: 50%; top: 132px; left: -4px; background: #b08957; outline: 5px solid var(--surface); }
+.today-marker > i { position: absolute; width: 7px; height: 7px; border-radius: 50%; top: 135px; left: -4px; background: #b08957; outline: 2px solid var(--surface); }
 .timeline-caption { font-size: 9px; color: var(--muted); padding-top: 12px; border-top: 1px solid var(--line); display: flex; justify-content: space-between; gap: 12px; }
 .timeline-caption > span:first-child { display: flex; align-items: center; gap: 6px; }
 .legend-dot { display: inline-block; width: 6px; height: 6px; border-radius: 50%; background: #7f8e75; }
@@ -184,19 +184,15 @@ input[type='range'] { accent-color: var(--accent); height: 24px; cursor: pointer
 .expanded .axis-origin, .expanded .axis-future { top: 220px; }
 .expanded .timeline-node { top: 78px; }
 .expanded .timeline-node.lane-1 { top: 244px; }
-.expanded .timeline-node.lane-2 { top: 10px; }
-.expanded .timeline-node.lane-2 .node-stem { height: 135px; }
-.expanded .timeline-node.lane-2 .node-dot { top: 217px; }
-.expanded .timeline-node.lane-2.goal .node-dot { top: 214px; }
-.expanded .timeline-node.lane-2.importance-3 .node-dot { top: 214px; }
-.expanded .timeline-node.lane-3 { top: 385px; }
-.expanded .timeline-node.lane-3 .node-stem { top: -142px; height: 142px; }
-.expanded .timeline-node.lane-3 .node-dot { top: -158px; }
-.expanded .timeline-node.lane-3.goal .node-dot { top: -160px; }
-.expanded .timeline-node.lane-3.importance-3 .node-dot { top: -160px; }
-.expanded .today-marker i { top: 199px; }
+.expanded .today-marker i { top: 202px; }
 .expanded .today-marker { top: 0; bottom: 9px; }
-.expanded .today-marker > span { top: 174px; z-index: 1; }
+.expanded .today-marker > span { top: 14px; z-index: 1; }
+.compact:not(.is-empty) .timeline-canvas { height: 331px; }
+.compact:not(.is-empty) .axis-line { top: 170px; }
+.compact:not(.is-empty) .axis-origin, .compact:not(.is-empty) .axis-future { top: 181px; }
+.compact:not(.is-empty) .timeline-node { top: 43px; }
+.compact:not(.is-empty) .timeline-node.lane-1 { top: 209px; }
+.compact:not(.is-empty) .today-marker > i { top: 167px; }
 .year-mark { position: absolute; top: 220px; font-size: 12px; font-family: var(--number); color: var(--muted); transform: translateX(-50%); }
 .timeline-empty { display: flex; align-items: center; justify-content: center; gap: 16px; max-width: 520px; margin: 20px auto 12px; padding: 20px 24px; border-radius: 9px; color: var(--muted); background: var(--hero); }
 .timeline-empty > svg { flex-shrink: 0; color: var(--accent); }

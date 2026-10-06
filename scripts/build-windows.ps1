@@ -12,6 +12,8 @@ try {
         $nodePath = (Get-Command node.exe -ErrorAction Stop).Source
         & $nodePath 'node_modules/typescript/bin/tsc' -b
         if ($LASTEXITCODE -ne 0) { throw 'Type check failed.' }
+        & $nodePath 'scripts/build-notices.mjs'
+        if ($LASTEXITCODE -ne 0) { throw 'Dependency notices generation failed.' }
         & $nodePath 'node_modules/vite/bin/vite.js' build
         if ($LASTEXITCODE -ne 0) { throw 'Web build failed.' }
         & $nodePath 'scripts/build-sw.mjs'

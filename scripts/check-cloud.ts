@@ -39,4 +39,18 @@ assert.equal(isJournal(mutate(j => { j.categories!.push({ ...j.categories![0], l
 assert.equal(isJournal(mutate(j => { j.categories![1].label = '生活 ' })), false, 'duplicate category names must be rejected')
 assert.equal(isJournal(mutate(j => { j.categories![0].color = 'url(example)' })), false, 'category colors must be plain hex values')
 assert.equal(isJournal(mutate(j => { j.categories = [] })), false, 'at least one category must remain')
-console.log('Journal payload checks passed, including legacy records, custom categories and reference integrity. Database RLS/CAS checks run separately on the configured project.')
+const formatted = seedJournal()
+formatted.moments[0].story = '**秋日散步**\n收益 $r = 0.05$'
+formatted.moments[0].storyFormat = 'markdown'
+formatted.moments[0].reflection = '<u>慢慢来</u>\n$$\nx^2\n$$'
+formatted.moments[0].reflectionFormat = 'markdown'
+assertJournal(formatted)
+assert.deepEqual(withCategories(JSON.parse(JSON.stringify(formatted))).moments, formatted.moments, 'format metadata and math source must survive storage round trips')
+const invalidFormat = JSON.parse(JSON.stringify(formatted))
+invalidFormat.moments[0].storyFormat = 'unsafe-html'
+assert.equal(isJournal(invalidFormat), false, 'unknown text formats must be rejected')
+const literal = seedJournal()
+literal.moments[0].story = '**literal stars** and $literal money$'
+assertJournal(literal)
+assert.equal(withCategories(literal).moments[0].storyFormat, undefined, 'legacy text must not silently opt into formatting')
+console.log('Journal payload checks passed, including legacy text, math source, custom categories and reference integrity. Database RLS/CAS checks run separately on the configured project.')

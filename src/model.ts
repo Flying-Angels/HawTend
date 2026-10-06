@@ -7,6 +7,7 @@ export interface CategoryDefinition {
   icon: string
 }
 export type Importance = 1 | 2 | 3
+export type TextFormat = 'markdown'
 export interface Moment {
   id: string
   title: string
@@ -15,6 +16,9 @@ export interface Moment {
   importance: Importance
   story: string
   reflection: string
+  // Absent on older records: display those strings literally until explicitly enabled.
+  storyFormat?: TextFormat
+  reflectionFormat?: TextFormat
 }
 export interface Goal {
   id: string

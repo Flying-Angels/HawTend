@@ -9,8 +9,11 @@ import { cents, exactYuan, futureValue, monthlySaving, monthsUntil, yuan } from 
 import { readJournal, writeJournal } from './storage'
 import { MAX_TIMELINE_YEAR, MAX_TIMELINE_YEARS, MIN_TIMELINE_YEAR, timelineBounds, timelineMarks, timelineRange } from './timeline-range'
 import type { TimelineRange } from './timeline-range'
+import { localDay, welcomeDay, yearsAfter } from './calendar'
+import { useToday } from './useToday'
+import { RichText } from './RichText'
+import { RichTextEditor } from './RichTextEditor'
 
-const TODAY = '2026-10-05'
 const dateLabel = (date: string) => date.replaceAll('-', '.')
 const navItems = [{ id: 'home', label: '我的手账', short: '手账', icon: 'home' }, { id: 'timeline', label: '人生时间轴', short: '时间轴', icon: 'timeline' }, { id: 'goals', label: '心愿与目标', short: '心愿', icon: 'flag' }, { id: 'funds', label: '资金安排', short: '资金', icon: 'wallet' }] as const
 type Page = typeof navItems[number]['id']
@@ -77,11 +80,12 @@ function TimelineRangeEditor({ range, apply, close }: { range: TimelineRange; ap
 }
 
 function Timeline({ journal, compact = false, open }: { journal: Journal; compact?: boolean; open: (panel: Panel) => void }) {
+  const today = useToday()
   const { categories } = useCategories()
   const [filter, setFilter] = useState<Category | 'all'>('all')
   useEffect(() => { if (filter !== 'all' && !categories.some(c => c.id === filter)) setFilter('all') }, [categories, filter])
   const [onlyImportant, setOnlyImportant] = useState(false)
-  const [range, setRange] = useState<TimelineRange>({ startYear: 2026, years: 4 })
+  const [range, setRange] = useState<TimelineRange>(() => timelineRange(Number(today.slice(0, 4)), 4))
   const [editingRange, setEditingRange] = useState(false)
   const closeRange = useCallback(() => setEditingRange(false), [])
   const [curve, setCurve] = useState(false)
@@ -99,10 +103,12 @@ function Timeline({ journal, compact = false, open }: { journal: Journal; compac
   const groups: (typeof items)[] = []
   visibleItems.forEach(entry => {
     const group = groups[groups.length - 1]
-    if (!compact && group && position(entry.item.date) - position(group[0].item.date) < 90) group.push(entry)
+    // A cluster must never mix yesterday, today and the future across the present marker.
+    const side = (date: string) => date < today ? -1 : date > today ? 1 : 0
+    if (group && side(entry.item.date) === side(group[0].item.date) && (compact ? entry.item.date === group[0].item.date : position(entry.item.date) - position(group[0].item.date) < 90)) group.push(entry)
     else groups.push([entry])
   })
-  const todayX = compact ? 80 + journal.moments.filter(m => m.date < TODAY && (filter === 'all' || m.category === filter) && (!onlyImportant || m.importance >= 2)).length * 188 : position(TODAY)
+  const todayX = compact ? 64 + groups.filter(group => group[0].item.date < today).length * 188 + 46 : position(today)
   useLayoutEffect(() => {
     if (!scroll.current || !scrollTarget.current) return
     const target = scrollTarget.current
@@ -110,7 +116,7 @@ function Timeline({ journal, compact = false, open }: { journal: Journal; compac
     scroll.current.scrollTo({ left: target === 'today' ? Math.max(0, todayX - scroll.current.clientWidth * .4) : 0, behavior: target === 'today' && !matchMedia('(prefers-reduced-motion: reduce)').matches ? 'smooth' : 'instant' })
   }, [range, todayX])
   const changeRange = (next: TimelineRange) => { scrollTarget.current = 'start'; setRange(next) }
-  const returnToday = () => { scrollTarget.current = 'today'; setRange(timelineRange(Number(TODAY.slice(0, 4)), range.years)) }
+  const returnToday = () => { scrollTarget.current = 'today'; setRange(timelineRange(Number(today.slice(0, 4)), range.years)) }
   const lastYear = range.startYear + range.years - 1
   const isEmpty = visibleItems.length === 0
   return <section className={`timeline-section ${compact ? 'compact' : 'expanded'}${isEmpty ? ' is-empty' : ''}`}>
@@ -126,14 +132,18 @@ function Timeline({ journal, compact = false, open }: { journal: Journal; compac
         <div className="axis-line" />
         <span className="axis-origin">过去</span><span className="axis-future">未来 <Icon name="arrow" size={16} /></span>
         {!compact && timelineMarks(range, width - 252).map(mark => <span className="year-mark" key={mark.date} style={{ left: position(mark.date) }}>{mark.label}</span>)}
-        {todayX >= 0 && todayX <= width && <div className="today-marker" style={{ left: todayX }}><span>今天 · 10.05</span><i /></div>}
+        {todayX >= 0 && todayX <= width && <div className="today-marker" data-date={today} style={{ left: todayX }}><span>今天 · {today.slice(5).replace('-', '.')}</span><i /></div>}
         {groups.map((group, index) => {
           const { kind, item } = group[0]
-          let x = compact ? 64 + index * 188 + (item.date > TODAY ? 92 : 0) : position(item.date)
+          const x = compact ? item.date === today ? todayX : 64 + index * 188 + (item.date > today ? 92 : 0) : position(item.date)
+          // Move the whole hit area with the card, keeping its dot fixed on the date.
+          // Nearby past/future cards sit on their own side of the present marker.
+          const cardLeft = item.date < today && x > 170 && x + 143 > todayX ? -143 : item.date > today && x - 20 < todayX ? 20 : 0
+          const nodeStyle = { left: x - 20 + cardLeft, '--node-anchor': `${20 - cardLeft}px` } as CSSProperties
           const lane = index % 2
           const c = categoryAppearance(categories.find(c => c.id === item.category) ?? categories[0])
-          if (group.length > 1) return <button key={`cluster-${item.id}`} className={`timeline-node cluster lane-${lane}`} style={{ left: x, '--category': '#777e68', '--category-light': '#e9ebdf' } as CSSProperties} onClick={() => open({ type: 'cluster', items: group })}><span className="node-stem" /><span className="node-dot" /><span className="node-card"><span className="node-meta">{dateLabel(item.date)}<span>聚合节点</span></span><strong>这段日子的 {group.length} 个节点</strong><span className="node-category"><Icon name="book" size={13} />点击展开 · 保留各自日期</span></span></button>
-          return <button key={item.id} className={`timeline-node lane-${lane} ${kind} importance-${kind === 'moment' ? (item as Moment).importance : 2}`} style={{ left: x, '--category': c.color, '--category-light': c.light } as CSSProperties} onClick={() => open(kind === 'moment' ? { type: 'moment', item: item as Moment } : { type: 'goal', item: item as Goal })}>
+          if (group.length > 1) return <button key={`cluster-${item.id}`} data-date={item.date} className={`timeline-node cluster lane-${lane}`} style={{ ...nodeStyle, '--category': '#777e68', '--category-light': '#e9ebdf' } as CSSProperties} onClick={() => open({ type: 'cluster', items: group })}><span className="node-stem" /><span className="node-dot" /><span className="node-card"><span className="node-meta">{dateLabel(item.date)}<span>聚合节点</span></span><strong>这段日子的 {group.length} 个节点</strong><span className="node-category"><Icon name="book" size={13} />点击展开 · 保留各自日期</span></span></button>
+          return <button key={item.id} data-date={item.date} className={`timeline-node lane-${lane} ${kind} importance-${kind === 'moment' ? (item as Moment).importance : 2}`} style={{ ...nodeStyle, '--category': c.color, '--category-light': c.light } as CSSProperties} onClick={() => open(kind === 'moment' ? { type: 'moment', item: item as Moment } : { type: 'goal', item: item as Goal })}>
             <span className="node-stem" /><span className="node-dot">{kind === 'goal' ? <Icon name="flag" size={11} /> : (item as Moment).importance === 3 ? <Icon name="star" size={11} /> : null}</span>
             <span className="node-card"><span className="node-meta">{dateLabel(item.date)}<span>{kind === 'goal' ? '计划' : importanceLabels[(item as Moment).importance]}</span></span><strong>{item.title}</strong><span className="node-category"><Icon name={c.icon} size={13} /><span className="node-category-name" title={c.label}>{c.label}</span>{kind === 'goal' && (item as Goal).budgetCents > 0 && <span className="node-amount">¥{yuan((item as Goal).budgetCents)}</span>}</span></span>
           </button>
@@ -147,13 +157,14 @@ function Timeline({ journal, compact = false, open }: { journal: Journal; compac
 }
 
 function FinanceCurve({ funds }: { funds: Fund[] }) {
+  const today = useToday()
   if (!funds.length) return <div className="blank-card"><Icon name="sprout" size={32} /><h2>先放好你的第一笔积蓄</h2><p>添加资金后，这里会画出它慢慢生长的轨迹。</p></div>
-  const dates = Array.from({ length: 11 }, (_, i) => `${2026 + i}-10-05`)
+  const dates = Array.from({ length: 11 }, (_, i) => yearsAfter(today, i))
   const balances = dates.map(d => funds.reduce((sum, f) => sum + futureValue(f, d), 0))
   const available = dates.map(d => funds.filter(f => f.liquid || (f.maturityDate && f.maturityDate <= d)).reduce((sum, f) => sum + futureValue(f, d), 0))
   const max = Math.max(1, ...balances) * 1.1
   const points = (values: number[]) => values.map((v, i) => `${50 + i * 66},${168 - v / max * 136}`).join(' ')
-  return <div className="finance-curve"><div><h3>让积蓄陪你走得更远</h3><p>独立的十年余额预测 · 未纳入目标支出与新增储蓄</p></div><svg viewBox="0 0 760 206" role="img" aria-label="2026至2036年的预测总资产与可用余额曲线"><path d="M50 30V168H710" fill="none" stroke="var(--line)" />{[2026, 2031, 2036].map((y, i) => <text key={y} x={50 + i * 330} y={193}>{y}</text>)}<text x="50" y="18">余额 / 元</text><text x="600" y="18">¥{yuan(balances[10])}</text><polyline points={points(balances)} fill="none" stroke="var(--accent)" strokeWidth="3" strokeDasharray="7 5" /><polyline points={points(available)} fill="none" stroke="#b48352" strokeWidth="2.5" strokeDasharray="3 4" /></svg><div className="curve-legend"><span><i />预计总资产</span><span><i />预计可用余额</span><span>定期到期后计入可用余额</span></div><p className="fine-print">预测以十年为刻度，按各笔资金的实际到期日期释放可用余额；收益不代表真实到账。</p></div>
+  return <div className="finance-curve"><div><h3>让积蓄陪你走得更远</h3><p>独立的十年余额预测 · 未纳入目标支出与新增储蓄</p></div><svg viewBox="0 0 760 206" role="img" aria-label={`${today.slice(0, 4)}至${dates[10].slice(0, 4)}年的预测总资产与可用余额曲线`}><path d="M50 30V168H710" fill="none" stroke="var(--line)" />{[0, 5, 10].map((y, i) => <text key={y} x={50 + i * 330} y={193}>{dates[y].slice(0, 4)}</text>)}<text x="50" y="18">余额 / 元</text><text x="600" y="18">¥{yuan(balances[10])}</text><polyline points={points(balances)} fill="none" stroke="var(--accent)" strokeWidth="3" strokeDasharray="7 5" /><polyline points={points(available)} fill="none" stroke="#b48352" strokeWidth="2.5" strokeDasharray="3 4" /></svg><div className="curve-legend"><span><i />预计总资产</span><span><i />预计可用余额</span><span>定期到期后计入可用余额</span></div><p className="fine-print">预测以十年为刻度，按各笔资金的实际到期日期释放可用余额；收益不代表真实到账。</p></div>
 }
 
 function GoalCard({ goal, open }: { goal: Goal; open: (panel: Panel) => void }) {
@@ -164,6 +175,7 @@ function GoalCard({ goal, open }: { goal: Goal; open: (panel: Panel) => void }) 
 }
 
 function MomentForm({ item, fresh, save, sample = false }: { item: Moment; fresh?: boolean; save: (item: Moment) => Promise<boolean>; sample?: boolean }) {
+  const today = useToday()
   const [draft, setDraft] = useState(item)
   const [pending, setPending] = useState(false)
   const [error, setError] = useState('')
@@ -176,7 +188,7 @@ function MomentForm({ item, fresh, save, sample = false }: { item: Moment; fresh
     event.preventDefault()
     setError('')
     if (!draft.title.trim()) { setError('给这一天写个标题吧。'); return }
-    if (draft.date > TODAY) { setError('大事记记录已发生的日子，未来的事情请添加为目标。'); return }
+    if (draft.date > localDay()) { setError('大事记记录已发生的日子，未来的事情请添加为目标。'); return }
     if (changedDate && !preview) { setPreview(true); return }
     setPending(true)
     const ok = await save({ ...draft, title: draft.title.trim() })
@@ -185,17 +197,18 @@ function MomentForm({ item, fresh, save, sample = false }: { item: Moment; fresh
   }
   return <form className="editor" onSubmit={submit}><div className="detail-tags"><CategoryTag category={draft.category} /><span className="importance-tag"><Icon name={draft.importance === 3 ? 'star' : 'sun'} size={14} />{importanceLabels[draft.importance]}</span></div>
     <label>这一天的标题<input required maxLength={120} value={draft.title} onChange={e => setDraft({ ...draft, title: e.target.value })} placeholder="有什么值得记住？" /></label>
-    <div className="form-grid"><label>发生日期<input required type="date" max={TODAY} value={draft.date} onChange={e => { setDraft({ ...draft, date: e.target.value }); setPreview(false) }} /></label><CategoryField value={draft.category} change={category => setDraft(current => ({ ...current, category }))} manage={() => setManageCategories(!manageCategories)} expanded={manageCategories} managerId={managerId} /></div>
+    <div className="form-grid"><label>发生日期<input required type="date" max={today} value={draft.date} onChange={e => { setDraft({ ...draft, date: e.target.value }); setPreview(false) }} /></label><CategoryField value={draft.category} change={category => setDraft(current => ({ ...current, category }))} manage={() => setManageCategories(!manageCategories)} expanded={manageCategories} managerId={managerId} /></div>
     {manageCategories && <CategoryManager id={managerId} onCreated={category => setDraft(current => ({ ...current, category }))} />}
     <label>对我有多重要<select value={draft.importance} onChange={e => setDraft({ ...draft, importance: Number(e.target.value) as Importance })}>{Object.entries(importanceLabels).map(([k, v]) => <option key={k} value={k}>{v}</option>)}</select></label>
-    <label>发生了什么<textarea rows={3} value={draft.story} onChange={e => setDraft({ ...draft, story: e.target.value })} placeholder="记录事情本身，几句话就好。" /></label>
-    <div className="reflection-field"><label><span><Icon name="edit" size={17} />留给自己的话 <small>感想 · 可稍后补写</small></span><textarea rows={5} value={draft.reflection} onChange={e => setDraft({ ...draft, reflection: e.target.value })} placeholder="当时的心情、后来想通的事，都可以留在这里。" /></label></div>
+    <RichTextEditor label="发生了什么" value={draft.story} format={draft.storyFormat} change={(story, storyFormat) => setDraft(current => ({ ...current, story, storyFormat }))} placeholder="记录事情本身，几句话就好。" />
+    <div className="reflection-field"><RichTextEditor label="留给自己的话" note="感想 · 可稍后补写" value={draft.reflection} format={draft.reflectionFormat} change={(reflection, reflectionFormat) => setDraft(current => ({ ...current, reflection, reflectionFormat }))} placeholder="当时的心情、后来想通的事，都可以留在这里。" /></div>
     {preview && <div className="notice">日期将从 {dateLabel(item.date)} 改为 {dateLabel(draft.date)}，节点位置随之更新。感想与资金安排不会改变；保存后可撤销。</div>}
     {error && <p role="alert" className="form-error">{error}</p>}<div className="editor-footer"><span>{sample ? '样例体验 · 不写入个人手账' : '仅保存到此浏览器'}</span><button className="primary-button" disabled={pending || busy} type="submit"><Icon name="check" size={17} />{pending ? '正在保存…' : changedDate && !preview ? '预览日期调整' : preview ? '确认调整并保存' : '收进手账'}</button></div>
   </form>
 }
 
 function GoalForm({ item, fresh, journal, save, sample = false }: { item: Goal; fresh?: boolean; journal: Journal; save: (item: Goal) => Promise<boolean>; sample?: boolean }) {
+  const today = useToday()
   const [draft, setDraft] = useState(item)
   const [expense, setExpense] = useState(sample ? '8000' : '0')
   const [obligation, setObligation] = useState(sample ? '2000' : '0')
@@ -209,28 +222,28 @@ function GoalForm({ item, fresh, journal, save, sample = false }: { item: Goal; 
   const liquidAmount = liquidFunds.reduce((sum, f) => sum + f.principalCents, 0)
   const available = liquidAmount - journal.goals.filter(g => g.id !== draft.id).reduce((sum, g) => sum + g.allocatedCents, 0)
   const weightedRate = liquidAmount ? liquidFunds.reduce((sum, f) => sum + f.principalCents * f.rate, 0) / liquidAmount : 0
-  const months = monthsUntil(TODAY, draft.date)
+  const months = monthsUntil(today, draft.date)
   const forecast = monthlySaving(draft.budgetCents, draft.allocatedCents, weightedRate, months)
   const changedDate = !fresh && draft.date !== item.date
   const submit = async (event: FormEvent) => {
     event.preventDefault()
     setError('')
     if (!draft.title.trim()) { setError('请填写目标名称。'); return }
-    if (draft.date < TODAY) { setError('目标日期不能早于示例参考日。'); return }
+    if ((fresh || changedDate) && draft.date < localDay()) { setError('目标日期不能早于今天。'); return }
     if (draft.allocatedCents > available) { setError(`扣除其他目标后，最多可分配 ¥${exactYuan(Math.max(0, available))}。`); return }
     if (draft.allocatedCents > draft.budgetCents) { setError('当前分配不能超过目标预算。'); return }
     if (changedDate && !preview) { setPreview(true); return }
     setPending(true); const ok = await save({ ...draft, title: draft.title.trim() }); setPending(false)
     if (!ok) setError('保存未完成，请重试。')
   }
-  return <form className="editor" onSubmit={submit}><label>我想完成的事<input required maxLength={120} value={draft.title} onChange={e => setDraft({ ...draft, title: e.target.value })} /></label><div className="form-grid"><label>希望完成的日期<input required type="date" min={TODAY} max="2100-12-31" value={draft.date} onChange={e => { setDraft({ ...draft, date: e.target.value }); setPreview(false) }} /></label><CategoryField value={draft.category} change={category => setDraft(current => ({ ...current, category }))} manage={() => setManageCategories(!manageCategories)} expanded={manageCategories} managerId={managerId} /></div>
+  return <form className="editor" onSubmit={submit}><label>我想完成的事<input required maxLength={120} value={draft.title} onChange={e => setDraft({ ...draft, title: e.target.value })} /></label><div className="form-grid"><label>希望完成的日期<input required type="date" min={fresh || changedDate ? today : undefined} max="2100-12-31" value={draft.date} onChange={e => { setDraft({ ...draft, date: e.target.value }); setPreview(false) }} /></label><CategoryField value={draft.category} change={category => setDraft(current => ({ ...current, category }))} manage={() => setManageCategories(!manageCategories)} expanded={manageCategories} managerId={managerId} /></div>
     {manageCategories && <CategoryManager id={managerId} onCreated={category => setDraft(current => ({ ...current, category }))} />}
     <label>为什么想做这件事<textarea rows={3} value={draft.description} onChange={e => setDraft({ ...draft, description: e.target.value })} /></label>
     <div className="form-grid"><label>预计需要 / 元<input type="number" min="0" max="100000000" step=".01" value={draft.budgetCents / 100} onChange={e => setDraft({ ...draft, budgetCents: cents(e.target.value) })} required /></label><label>已为它分配 / 元<input type="number" min="0" step=".01" value={draft.allocatedCents / 100} onChange={e => setDraft({ ...draft, allocatedCents: cents(e.target.value) })} required /></label></div>
     <p className="fine-print">预算为手动估计。原型将分配资金放在活期池中，不重复分配；十年定期无法用于到期前的目标。</p>
     {draft.budgetCents > 0 && <div className="forecast-box"><span className="eyebrow">为这个心愿，每月留一点</span><div className="forecast-number">{forecast.monthly === null ? '目标已临近' : <><small>¥</small>{exactYuan(forecast.monthly)}<span>/ 月</span></>}</div><p>{months} 次月末储蓄 · 活期池加权年化 {weightedRate.toFixed(2)}%<br />当前分配预计增长到 ¥{exactYuan(forecast.futureAllocated)}，剩余缺口 ¥{exactYuan(forecast.gap)}。</p><div className="form-grid"><label>每月生活开支 / 元<input aria-label="每月生活开支" type="number" min="0" step=".01" value={expense} onChange={e => setExpense(e.target.value)} /></label><label>每月固定义务 / 元<input aria-label="每月固定义务" type="number" min="0" step=".01" value={obligation} onChange={e => setObligation(e.target.value)} /></label></div><div className="income-line"><span>所需月可支配收入</span><strong>{forecast.monthly === null ? '先调整日期' : `¥${exactYuan(forecast.monthly + cents(expense) + cents(obligation))}`}</strong></div><p className="fine-print">本目标测算，不含其他目标的月储蓄。收入指税后可支配收入；开支和义务为临时试算，未记入账单。新增储蓄按同一活期收益持续计息。</p></div>}
     <label>自己记录的进度 · {draft.progress}%<input aria-label="目标进度" className="progress-input" type="range" min="0" max="100" value={draft.progress} onChange={e => setDraft({ ...draft, progress: Number(e.target.value) })} /></label>
-    {preview && <div className="notice">目标日期从 {dateLabel(item.date)} 调整到 {dateLabel(draft.date)}。上述月储蓄已按新日期重算；保存后可撤销。</div>}{error && <p role="alert" className="form-error">{error}</p>}<div className="editor-footer"><span>试算参考日：2026.10.05</span><button className="primary-button" disabled={pending || busy} type="submit">{pending ? '正在保存…' : changedDate && !preview ? '预览日期调整' : preview ? '确认调整并保存' : '保存这个心愿'}</button></div>
+    {preview && <div className="notice">目标日期从 {dateLabel(item.date)} 调整到 {dateLabel(draft.date)}。上述月储蓄已按新日期重算；保存后可撤销。</div>}{error && <p role="alert" className="form-error">{error}</p>}<div className="editor-footer"><span>试算参考日：{dateLabel(today)}</span><button className="primary-button" disabled={pending || busy} type="submit">{pending ? '正在保存…' : changedDate && !preview ? '预览日期调整' : preview ? '确认调整并保存' : '保存这个心愿'}</button></div>
   </form>
 }
 
@@ -248,11 +261,11 @@ function FundForm({ item, journal, save }: { item: Fund; journal: Journal; save:
     setPending(true); const ok = await save({ ...draft, maturityDate: draft.liquid ? '' : draft.maturityDate }); setPending(false)
     if (!ok) setError('保存未完成，请重试。')
   }
-  const previewDate = draft.liquid ? '2027-10-05' : draft.maturityDate
+  const previewDate = draft.liquid ? yearsAfter(draft.startDate, 1) : draft.maturityDate
   return <form className="editor" onSubmit={submit}><label>这笔钱的名字<input required maxLength={80} value={draft.name} onChange={e => setDraft({ ...draft, name: e.target.value })} /></label><div className="form-grid"><label>参考日余额 / 元<input required type="number" min="0" max="100000000" step=".01" value={draft.principalCents / 100} onChange={e => setDraft({ ...draft, principalCents: cents(e.target.value) })} /></label><label>年化收益 / %<input required type="number" min="0" max="30" step=".01" value={draft.rate} onChange={e => setDraft({ ...draft, rate: Number(e.target.value) })} /></label></div>
-    <p className="fine-print">示例参考日：2026.10.05。余额视为截至当日已结算的金额，之前的利息不会重复累加。原型支持固定非负年化，正式版再细化付息方式。</p>
+    <p className="fine-print">这笔资金的参考日：{dateLabel(draft.startDate)}。余额视为截至当日已结算的金额，之前的利息不会重复累加。原型支持固定非负年化，正式版再细化付息方式。</p>
     <label>资金可用性<select value={draft.liquid ? 'liquid' : 'locked'} onChange={e => setDraft({ ...draft, liquid: e.target.value === 'liquid' })}><option value="liquid">活期 · 随时可用</option><option value="locked">定期 · 到期可用</option></select></label>
-    {!draft.liquid && <label>到期日期<input required min={TODAY} max="2100-12-31" type="date" value={draft.maturityDate} onChange={e => setDraft({ ...draft, maturityDate: e.target.value })} /></label>}
+    {!draft.liquid && <label>到期日期<input required min={draft.startDate} max="2100-12-31" type="date" value={draft.maturityDate} onChange={e => setDraft({ ...draft, maturityDate: e.target.value })} /></label>}
     <label>计息方式<select value={draft.mode} onChange={e => setDraft({ ...draft, mode: e.target.value as Fund['mode'] })}><option value="compound">复利 · 利息继续投入</option><option value="simple">单利 · 按参考日余额计息</option></select></label>
     {previewDate && <div className="forecast-box"><span className="eyebrow">{draft.liquid ? '一年后预计余额' : '到期预计余额'}</span><div className="forecast-number"><small>¥</small>{exactYuan(futureValue(draft, previewDate))}</div><p>预计收益 ¥{exactYuan(futureValue(draft, previewDate) - draft.principalCents)}<br />{draft.liquid ? '按固定年化估算，实际收益可能变化。' : `${dateLabel(draft.maturityDate)} 到期；到期后默认零收益。`}</p></div>}
     <div className="notice">预计收益不代表实际入账。定期在到期前锁定本金与利息，不提前用于目标；暂不模拟提前支取。</div>{error && <p role="alert" className="form-error">{error}</p>}<div className="editor-footer"><span>调整后目标试算随之更新</span><button className="primary-button" disabled={pending} type="submit">{pending ? '正在保存…' : '保存资金安排'}</button></div>
@@ -260,6 +273,7 @@ function FundForm({ item, journal, save }: { item: Fund; journal: Journal; save:
 }
 
 export default function App() {
+  const today = useToday()
   const [journal, setJournal] = useState<Journal>(emptyJournal)
   const [sampleMode, setSampleMode] = useState(false)
   const personalJournal = useRef<Journal>(emptyJournal())
@@ -312,7 +326,7 @@ export default function App() {
   }
   const exportData = () => {
     const url = URL.createObjectURL(new Blob([JSON.stringify(journal, null, 2)], { type: 'application/json' }))
-    const link = document.createElement('a'); link.href = url; link.download = `HawTend-${sampleMode ? '样例手账' : '我的手账'}-${TODAY}.json`; link.click(); URL.revokeObjectURL(url)
+    const link = document.createElement('a'); link.href = url; link.download = `HawTend-${sampleMode ? '样例手账' : '我的手账'}-${localDay()}.json`; link.click(); URL.revokeObjectURL(url)
   }
   const switchSample = () => {
     if (saving.current || !loaded.current || loadError.current) return
@@ -320,9 +334,9 @@ export default function App() {
     else { personalJournal.current = journal; setJournal(seedJournal()) }
     setSampleMode(!sampleMode); setPage('home'); setPanel(null); setToast(''); setUndo(null); setStatus('saved'); window.scrollTo(0, 0)
   }
-  const newMoment = () => setPanel({ type: 'moment', fresh: true, item: { id: crypto.randomUUID(), title: '', date: TODAY, category: journalCategories(journal)[0].id, importance: 1, story: '', reflection: '' } })
-  const newGoal = () => setPanel({ type: 'goal', fresh: true, item: { id: crypto.randomUUID(), title: '', date: '2027-12-31', category: journalCategories(journal)[0].id, budgetCents: 0, allocatedCents: 0, progress: 0, description: '' } })
-  const newFund = () => setPanel({ type: 'fund', fresh: true, item: { id: crypto.randomUUID(), name: '', principalCents: 0, rate: 0, startDate: TODAY, maturityDate: '', mode: 'compound', liquid: true } })
+  const newMoment = () => setPanel({ type: 'moment', fresh: true, item: { id: crypto.randomUUID(), title: '', date: localDay(), category: journalCategories(journal)[0].id, importance: 1, story: '', reflection: '', storyFormat: 'markdown', reflectionFormat: 'markdown' } })
+  const newGoal = () => setPanel({ type: 'goal', fresh: true, item: { id: crypto.randomUUID(), title: '', date: `${Number(localDay().slice(0, 4)) + 1}-12-31`, category: journalCategories(journal)[0].id, budgetCents: 0, allocatedCents: 0, progress: 0, description: '' } })
+  const newFund = () => setPanel({ type: 'fund', fresh: true, item: { id: crypto.randomUUID(), name: '', principalCents: 0, rate: 0, startDate: localDay(), maturityDate: '', mode: 'compound', liquid: true } })
   const navigate = (id: Page) => { setPage(id); window.scrollTo(0, 0) }
   const total = journal.funds.reduce((sum, f) => sum + f.principalCents, 0)
   const liquid = journal.funds.filter(f => f.liquid).reduce((sum, f) => sum + f.principalCents, 0)
@@ -338,15 +352,15 @@ export default function App() {
       {status === 'failed' && <div className="notice" role="alert">{loadError.current ? '本地手账读取失败，暂不显示已存内容并暂停写入，防止覆盖已有数据。请刷新重试。' : '刚才的修改未保存，请在详情中重试。原有记录仍保留。'} <button className="text-button" onClick={exportData}>导出当前内容</button></div>}
       {cacheFailed && <div className="notice" role="alert">离线页面缓存未建立，请联网使用。已写入本地的记录不受影响。</div>}
       {page === 'home' && <>
-        <section className="welcome"><div className="welcome-copy"><span className="eyebrow">MONDAY, OCTOBER 05, 2026</span><h1>把日子过成<br />喜欢的样子<span className="title-dot">。</span></h1><p>收藏走过的路，也给未来留一些期待。</p><button className="text-button" onClick={newGoal} disabled={disabled}>写下一个新心愿<Icon name="arrow" size={17} /></button></div><div className="welcome-art"><Landscape /><span>山有回响，日子有光。</span><Icon name="star" size={17} className="art-star" /></div></section>
+        <section className="welcome"><div className="welcome-copy"><span className="eyebrow">{welcomeDay(today)}</span><h1>把日子过成<br />喜欢的样子<span className="title-dot">。</span></h1><p>收藏走过的路，也给未来留一些期待。</p><button className="text-button" onClick={newGoal} disabled={disabled}>写下一个新心愿<Icon name="arrow" size={17} /></button></div><div className="welcome-art"><Landscape /><span>山有回响，日子有光。</span><Icon name="star" size={17} className="art-star" /></div></section>
         <section className="overview-stats" aria-label="手账概览"><div><span><Icon name="flag" size={16} />正在靠近的心愿</span><strong>{journal.goals.length}<small>个</small></strong><p>每一点进展，都算数</p></div><div><span><Icon name="wallet" size={16} />已为未来留存</span><strong><small>¥</small>{yuan(total)}</strong><p>参考日余额 · 含定期资金</p></div><div><span><Icon name="book" size={16} />值得记住的日子</span><strong>{journal.moments.length}<small>篇</small></strong><p>生活里的小小里程碑</p></div></section>
         {!sampleMode && isBlank && status === 'saved' && <section className="first-page-card"><span className="first-page-icon"><Icon name="leaf" size={26} /></span><div><h2>生活的第一页，留给你来写。</h2><p>从一个小小的心愿，或今天值得记住的事开始。</p></div><button className="primary-button" disabled={disabled} onClick={newMoment}>记下第一天<Icon name="arrow" size={16} /></button></section>}
         <Timeline journal={journal} compact open={setPanel} />
-        <div className="home-bottom"><section className="goals-preview"><div className="section-heading"><div><span className="eyebrow">A LITTLE CLOSER</span><h2>想做的事，慢慢实现</h2></div><button className="text-button" onClick={() => navigate('goals')}>全部心愿<Icon name="arrow" size={16} /></button></div>{journal.goals.slice(0, 3).map(g => <GoalCard key={g.id} goal={g} open={setPanel} />)}{!journal.goals.length && <div className="empty-state">未来还空着，给它留一个心愿吧。<button className="text-button" onClick={newGoal}>添加心愿</button></div>}</section><section className="journal-preview"><div className="section-heading"><div><span className="eyebrow">A NOTE TO MYSELF</span><h2>留给自己的话</h2></div><Icon name="edit" size={19} /></div>{latest ? <button className="reflection-card" onClick={() => setPanel({ type: 'moment', item: latest })}><div><CategoryTag category={latest.category} /><span>{dateLabel(latest.date)}</span></div><span className="quote-mark">“</span><p>{latest.reflection || '这一天的心情，可以慢慢写下来。'}</p><strong>{latest.title}<Icon name="arrow" size={15} /></strong></button> : <div className="empty-state">给今天的自己写几句话。<button className="text-button" onClick={newMoment}>记录一天</button></div>}</section></div>
+        <div className="home-bottom"><section className="goals-preview"><div className="section-heading"><div><span className="eyebrow">A LITTLE CLOSER</span><h2>想做的事，慢慢实现</h2></div><button className="text-button" onClick={() => navigate('goals')}>全部心愿<Icon name="arrow" size={16} /></button></div>{journal.goals.slice(0, 3).map(g => <GoalCard key={g.id} goal={g} open={setPanel} />)}{!journal.goals.length && <div className="empty-state">未来还空着，给它留一个心愿吧。<button className="text-button" onClick={newGoal}>添加心愿</button></div>}</section><section className="journal-preview"><div className="section-heading"><div><span className="eyebrow">A NOTE TO MYSELF</span><h2>留给自己的话</h2></div><Icon name="edit" size={19} /></div>{latest ? <button className="reflection-card" onClick={() => setPanel({ type: 'moment', item: latest })}><div><CategoryTag category={latest.category} /><span>{dateLabel(latest.date)}</span></div><span className="quote-mark">“</span><div className="reflection-excerpt"><RichText value={latest.reflection || '这一天的心情，可以慢慢写下来。'} format={latest.reflectionFormat} summary /></div><strong>{latest.title}<Icon name="arrow" size={15} /></strong></button> : <div className="empty-state">给今天的自己写几句话。<button className="text-button" onClick={newMoment}>记录一天</button></div>}</section></div>
       </>}
       {page === 'timeline' && <><div className="page-heading"><span className="eyebrow">PAST, PRESENT & POSSIBILITY</span><h1>日子连起来，就是人生。</h1><p>已发生的大事与未来的心愿，在这里相遇。</p></div><Timeline journal={journal} open={setPanel} /><div className="timeline-bottom-note"><Icon name="book" size={25} /><div><strong>事情有大小，感受没有。</strong><p>分类颜色帮你找到同类的日子；重要程度用星标、大小与文字一起区分。</p></div><button className="quiet-button" onClick={newMoment} disabled={disabled}><Icon name="plus" size={17} />记录一个日子</button></div></>}
       {page === 'goals' && <><div className="page-heading with-action"><div><span className="eyebrow">MAKE ROOM FOR WHAT MATTERS</span><h1>心愿有了位置，<br className="mobile-only" />未来就有了方向。</h1><p>给想做的事一点时间，也一点认真。</p></div><button className="primary-button" onClick={newGoal} disabled={disabled}><Icon name="plus" size={17} />添加心愿</button></div><div className="goal-grid">{journal.goals.map(g => <div key={g.id} className="goal-tile"><CategoryTag category={g.category} /><GoalCard goal={g} open={setPanel} /><p>{g.description}</p><button className="text-button" onClick={() => setPanel({ type: 'goal', item: g })}>看看如何靠近它<Icon name="arrow" size={16} /></button></div>)}</div>{!journal.goals.length && <section className="blank-card"><Icon name="flag" size={32} /><h2>把第一份期待，写在这里。</h2><p>不必一次想好整个人生，先给一件想做的事留个位置。</p><button className="quiet-button" disabled={disabled} onClick={newGoal}>添加第一个心愿<Icon name="plus" size={16} /></button></section>}<div className="gentle-banner"><Icon name="sprout" size={28} /><p>计划可以调整。<br /><span>改变日期前，先看一眼新的储蓄节奏，再决定怎么走。</span></p></div></>}
-      {page === 'funds' && <><div className="page-heading with-action"><div><span className="eyebrow">A LITTLE PEACE OF MIND</span><h1>为想要的生活，<br className="mobile-only" />留一份底气。</h1><p>每一笔积蓄，都有自己的节奏。</p></div><button className="primary-button" onClick={newFund} disabled={disabled}><Icon name="plus" size={17} />添加资金</button></div><div className="fund-summary"><div><span>当前总余额</span><strong><small>¥</small>{yuan(total)}</strong><p>{sampleMode ? "示例参考日" : "试算参考日"} 2026.10.05</p></div><div><span>随时可用</span><strong>¥{yuan(liquid)}</strong><p>定期本金和锁定利息暂不计入</p></div><div><span>已分配给心愿</span><strong>¥{yuan(allocated)}</strong><p>活期尚未分配 ¥{yuan(liquid - allocated)}</p></div></div><div className="section-heading"><div><span className="eyebrow">MONEY, WITH A PURPOSE</span><h2>我的资金安排</h2></div><span className="subtle">点击调整余额与收益</span></div><div className="fund-list">{journal.funds.map(f => <button key={f.id} className="fund-row" onClick={() => setPanel({ type: 'fund', item: f })}><span className={`fund-icon ${f.liquid ? 'liquid' : ''}`}><Icon name={f.liquid ? 'wallet' : 'lock'} size={24} /></span><span className="fund-name"><strong>{f.name}</strong><span>{f.liquid ? '活期 · 随时可用' : `定期 · ${dateLabel(f.maturityDate)} 到期`}<span className="small-separator">/</span>{f.mode === 'compound' ? '复利' : '单利'}</span></span><span className="fund-rate"><strong>{f.rate.toFixed(2)}<small>%</small></strong><span>年化假设</span></span><span className="fund-value"><strong>¥{yuan(f.principalCents)}</strong><span>参考日余额</span></span><Icon name="chevron" size={17} /></button>)}</div><FinanceCurve funds={journal.funds} /><div className="notice financial-note"><Icon name="leaf" size={20} /><span>收益只是规划假设，不是保证。资金配置变化后，心愿中的月储蓄会重新计算；预测与实际账单分开记录。</span></div></>}
+      {page === 'funds' && <><div className="page-heading with-action"><div><span className="eyebrow">A LITTLE PEACE OF MIND</span><h1>为想要的生活，<br className="mobile-only" />留一份底气。</h1><p>每一笔积蓄，都有自己的节奏。</p></div><button className="primary-button" onClick={newFund} disabled={disabled}><Icon name="plus" size={17} />添加资金</button></div><div className="fund-summary"><div><span>记录的总余额</span><strong><small>¥</small>{yuan(total)}</strong><p>各笔资金按自己的参考日记录</p></div><div><span>随时可用</span><strong>¥{yuan(liquid)}</strong><p>定期本金和锁定利息暂不计入</p></div><div><span>已分配给心愿</span><strong>¥{yuan(allocated)}</strong><p>活期尚未分配 ¥{yuan(liquid - allocated)}</p></div></div><div className="section-heading"><div><span className="eyebrow">MONEY, WITH A PURPOSE</span><h2>我的资金安排</h2></div><span className="subtle">点击调整余额与收益</span></div><div className="fund-list">{journal.funds.map(f => <button key={f.id} className="fund-row" onClick={() => setPanel({ type: 'fund', item: f })}><span className={`fund-icon ${f.liquid ? 'liquid' : ''}`}><Icon name={f.liquid ? 'wallet' : 'lock'} size={24} /></span><span className="fund-name"><strong>{f.name}</strong><span>{f.liquid ? '活期 · 随时可用' : `定期 · ${dateLabel(f.maturityDate)} 到期`}<span className="small-separator">/</span>{f.mode === 'compound' ? '复利' : '单利'}</span></span><span className="fund-rate"><strong>{f.rate.toFixed(2)}<small>%</small></strong><span>年化假设</span></span><span className="fund-value"><strong>¥{yuan(f.principalCents)}</strong><span>参考日余额</span></span><Icon name="chevron" size={17} /></button>)}</div><FinanceCurve funds={journal.funds} /><div className="notice financial-note"><Icon name="leaf" size={20} /><span>收益只是规划假设，不是保证。资金配置变化后，心愿中的月储蓄会重新计算；预测与实际账单分开记录。</span></div></>}
       <footer className="page-footer"><span>HawTend · 好好生活，慢慢记录</span><button onClick={() => setPanel({ type: 'settings' })} className="text-button">本地原型 · 云同步未连接<Icon name="cloud" size={15} /></button></footer>
       </div></main>
     <nav className="mobile-nav" aria-label="手机主要导航">{navItems.map(n => <button key={n.id} className={page === n.id ? 'active' : ''} aria-current={page === n.id ? 'page' : undefined} onClick={() => navigate(n.id)}><Icon name={n.icon} size={21} /><span>{n.short}</span></button>)}<button className="mobile-add" disabled={disabled} aria-label="记下一刻" onClick={() => setPanel({ type: 'new' })}><Icon name="plus" size={23} /><span>记录</span></button></nav>

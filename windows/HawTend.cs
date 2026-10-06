@@ -13,7 +13,7 @@ using System.Windows.Forms;
 
 [assembly: AssemblyTitle("HawTend")]
 [assembly: AssemblyDescription("HawTend 人生手账 · 本地桌面原型")]
-[assembly: AssemblyVersion("0.0.8.0")]
+[assembly: AssemblyVersion("0.0.9.0")]
 
 internal static class Program
 {
@@ -260,6 +260,9 @@ internal sealed class StaticApp
             case ".png": return "image/png";
             case ".svg": return "image/svg+xml";
             case ".ico": return "image/x-icon";
+            case ".woff2": return "font/woff2";
+            case ".woff": return "font/woff";
+            case ".ttf": return "font/ttf";
             default: return "application/octet-stream";
         }
     }
