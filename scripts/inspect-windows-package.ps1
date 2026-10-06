@@ -12,7 +12,8 @@ function Get-StreamHash([System.IO.Stream]$Stream) {
 
 $assetStream = $assembly.GetManifestResourceStream('HawTend.Assets')
 $iconStream = $assembly.GetManifestResourceStream('HawTend.Icon')
-if (-not $assetStream -or -not $iconStream) { throw 'Embedded app resources are missing.' }
+$trayStream = $assembly.GetManifestResourceStream('HawTend.TrayIcon')
+if (-not $assetStream -or -not $iconStream -or -not $trayStream) { throw 'Embedded app resources are missing.' }
 $archive = [System.IO.Compression.ZipArchive]::new($assetStream, [System.IO.Compression.ZipArchiveMode]::Read)
 try {
     $distPath = Join-Path $projectDir 'dist'
@@ -35,12 +36,17 @@ try {
     try {
         if ((Get-StreamHash $iconStream) -ne (Get-StreamHash $expectedIcon)) { throw 'Embedded icon differs from the approved build.' }
     } finally { $expectedIcon.Dispose() }
+    $expectedTray = [System.IO.File]::OpenRead((Join-Path $projectDir 'output/windows-build/hawtend-tray.ico'))
+    try {
+        if ((Get-StreamHash $trayStream) -ne (Get-StreamHash $expectedTray)) { throw 'Embedded tray icon differs.' }
+    } finally { $expectedTray.Dispose() }
     [PSCustomObject]@{
         ReflectionOnly = $assembly.ReflectionOnly
         AssemblyVersion = $assembly.GetName().Version.ToString()
         EmbeddedFilesMatched = $matched
         IconMatched = $true
+        TrayIconMatched = $true
         ExeBytes = (Get-Item -LiteralPath $exePath).Length
         SHA256 = (Get-FileHash -LiteralPath $exePath -Algorithm SHA256).Hash
     } | ConvertTo-Json
-} finally { $archive.Dispose(); $assetStream.Dispose(); $iconStream.Dispose(); $sha.Dispose() }
+} finally { $archive.Dispose(); $assetStream.Dispose(); $iconStream.Dispose(); $trayStream.Dispose(); $sha.Dispose() }

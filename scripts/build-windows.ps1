@@ -53,8 +53,24 @@ try {
         foreach ($frame in $frames) { $writer.Write([byte[]]$frame.Bytes) }
     } finally { $writer.Dispose() }
 
+    # A separate, stronger silhouette stays readable in the notification area.
+    $trayFrames = @(16,20,24,32,40,48) | ForEach-Object { @{ Size = $_; Bytes = [System.IO.File]::ReadAllBytes((Join-Path $projectDir "public/brand/tray-icon-$_.png")) } }
+    $trayIconPath = Join-Path $buildDir 'hawtend-tray.ico'
+    $trayWriter = [System.IO.BinaryWriter]::new([System.IO.File]::Create($trayIconPath))
+    try {
+        $trayWriter.Write([uint16]0); $trayWriter.Write([uint16]1); $trayWriter.Write([uint16]$trayFrames.Count)
+        $offset = 6 + 16 * $trayFrames.Count
+        foreach ($frame in $trayFrames) {
+            $trayWriter.Write([byte]$frame.Size); $trayWriter.Write([byte]$frame.Size); $trayWriter.Write([byte]0); $trayWriter.Write([byte]0)
+            $trayWriter.Write([uint16]1); $trayWriter.Write([uint16]32)
+            $trayWriter.Write([uint32]$frame.Bytes.Length); $trayWriter.Write([uint32]$offset)
+            $offset += $frame.Bytes.Length
+        }
+        foreach ($frame in $trayFrames) { $trayWriter.Write([byte[]]$frame.Bytes) }
+    } finally { $trayWriter.Dispose() }
+
     $exePath = Join-Path $releaseDir $ExecutableName
-    & $compiler /nologo /target:winexe /platform:anycpu /optimize+ /codepage:65001 "/win32icon:$iconPath" "/resource:$iconPath,HawTend.Icon" "/resource:$zipPath,HawTend.Assets" "/out:$exePath" /reference:System.Windows.Forms.dll /reference:System.Drawing.dll /reference:System.IO.Compression.dll (Join-Path $projectDir 'windows\HawTend.cs')
+    & $compiler /nologo /target:winexe /platform:anycpu /optimize+ /codepage:65001 "/win32icon:$iconPath" "/resource:$iconPath,HawTend.Icon" "/resource:$trayIconPath,HawTend.TrayIcon" "/resource:$zipPath,HawTend.Assets" "/out:$exePath" /reference:System.Windows.Forms.dll /reference:System.Drawing.dll /reference:System.IO.Compression.dll "/reference:$frameworkDir/WPF/UIAutomationClient.dll" "/reference:$frameworkDir/WPF/UIAutomationTypes.dll" (Join-Path $projectDir 'windows\HawTend.cs') (Join-Path $projectDir 'windows\DesktopWindows.cs')
     if ($LASTEXITCODE -ne 0) { throw 'Windows build failed.' }
     # A separate ICO lets shortcuts use the new artwork without reusing cached EXE icons.
     Copy-Item -LiteralPath $iconPath -Destination (Join-Path $releaseDir 'HawTend-transparent.ico') -Force

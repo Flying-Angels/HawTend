@@ -29,7 +29,9 @@ export interface Goal {
   allocatedCents: number
   progress: number
   description: string
+  newSavingRate?: number
 }
+export interface MonthlySummary { month: string; incomeCents: number; expenseCents: number; note: string }
 export interface Fund {
   id: string
   name: string
@@ -48,6 +50,7 @@ export interface Journal {
   theme: 'paper' | 'forest' | 'dusk'
   // Optional for compatibility with journals written before category management.
   categories?: CategoryDefinition[]
+  monthlySummaries?: MonthlySummary[]
 }
 export const categories: Record<Category, { label: string; color: string; light: string; icon: string }> = {
   life: { label: '生活', color: '#a86d48', light: '#f2e7dc', icon: 'sun' },
@@ -71,6 +74,7 @@ export function isUneditedSample(journal: Journal): boolean {
   return journal.schemaVersion === 1 && (['moments', 'goals', 'funds'] as const)
     .every(key => JSON.stringify(journal[key]) === JSON.stringify(sample[key]))
     && JSON.stringify(journal.categories ?? defaultCategories()) === JSON.stringify(sample.categories)
+    && !journal.monthlySummaries?.length
 }
 
 export function seedJournal(): Journal {

@@ -1,0 +1,62 @@
+.funds-tabs { display: flex; gap: 5px; width: fit-content; padding: 5px; border: 1px solid var(--line); border-radius: 10px; margin: -4px 0 28px; background: var(--surface); }
+.funds-tabs button { padding: 10px 22px; min-height: 42px; border-radius: 6px; color: var(--muted); font-size: 13px; }
+.funds-tabs button[aria-pressed='true'] { background: var(--hero); color: var(--accent); }
+.month-reminder { display: flex; gap: 18px; align-items: center; background: var(--hero); padding: 23px 26px; border-radius: 10px; color: var(--accent); margin-bottom: 24px; }
+.month-reminder > div { flex: 1; min-width: 0; }
+.month-reminder strong, .monthly-guidance strong, .month-calendar strong { font: 18px/1.8 var(--serif); }
+.month-reminder p, .monthly-guidance p, .month-calendar p { margin-top: 6px; color: var(--muted); font-size: 12px; line-height: 1.9; }
+.month-overview { display: grid; grid-template-columns: repeat(3, 1fr); padding: 25px; background: var(--surface); border: 1px solid var(--line); border-radius: 10px; margin: 0 0 34px; }
+.month-overview > div { padding: 0 22px; border-right: 1px solid var(--line); }
+.month-overview > div:first-child { padding-left: 4px; }
+.month-overview > div:last-child { border: 0; }
+.month-overview span, .month-overview small { display: block; color: var(--muted); font-size: 11px; }
+.month-overview strong { font: 25px/1.8 var(--number); display: block; margin-top: 8px; }
+.negative { color: #a2604e; }
+.month-editor { background: var(--surface); border: 1px solid var(--line); border-radius: 10px; margin: 20px 0; }
+.month-editor-heading { display: flex; justify-content: space-between; align-items: center; margin-bottom: 22px; }
+.month-editor h3 { font: 23px var(--serif); }
+.month-editor-net { display: flex; align-items: center; justify-content: space-between; background: var(--hero); border-radius: 7px; padding: 15px 18px; margin-bottom: 20px; color: var(--accent); font-size: 12px; }
+.month-editor-net strong { font: 23px var(--number); }
+.month-history { border-top: 1px solid var(--line); }
+.month-history article { border-bottom: 1px solid var(--line); padding: 13px 0; }
+.month-history-row { display: grid; grid-template-columns: 1.1fr 1fr 1fr 1fr 18px; gap: 18px; text-align: left; width: 100%; padding: 14px 10px; border-radius: 7px; }
+.month-history-row:hover { background: var(--hero); }
+.month-history-row > span { min-width: 0; }
+.month-history-row strong { font: 18px/1.5 var(--number); overflow-wrap: anywhere; }
+.month-history-row small { display: block; font: 10px/2 sans-serif; color: var(--muted); }
+.month-history-date { font: 20px var(--number); }
+.month-note { font: 14px/1.9 var(--serif); color: var(--muted); margin: 5px 10px 9px; white-space: pre-wrap; overflow-wrap: anywhere; }
+.month-row-actions { display: flex; justify-content: flex-end; gap: 14px; align-items: center; font-size: 11px; color: var(--muted); }
+.month-row-actions .text-button { font-size: 11px; min-height: 30px; }
+.month-blank { margin-top: 18px; padding: 34px 20px; }
+.month-blank h2 { font-size: 19px; }
+.monthly-guidance { display: flex; gap: 17px; border-radius: 9px; background: var(--hero); padding: 24px; margin-top: 27px; color: var(--accent); }
+.monthly-guidance svg { flex-shrink: 0; margin-top: 5px; }
+.monthly-guidance .text-button { margin-top: 8px; font-size: 12px; }
+.month-calendar { display: flex; align-items: center; gap: 22px; margin-top: 24px; padding: 22px 0; border-top: 1px solid var(--line); }
+.month-calendar > div { flex: 1; }
+.month-calendar .quiet-button { flex-shrink: 0; }
+.calendar-notice { font-size: 12px; line-height: 1.9; padding: 14px 18px; border-radius: 7px; background: var(--hero); color: var(--accent); }
+@media (max-width: 760px) {
+  .funds-tabs { margin: 0 0 20px; width: 100%; }
+  .funds-tabs button { flex: 1; min-height: 44px; }
+  .month-reminder { padding: 21px 18px; flex-wrap: wrap; gap: 12px; }
+  .month-reminder > div { flex-basis: calc(100% - 42px); }
+  .month-reminder .quiet-button { margin-left: 36px; min-height: 44px; }
+  .month-overview { padding: 12px 18px; gap: 0; grid-template-columns: 1fr; }
+  .month-overview > div, .month-overview > div:first-child { padding: 12px 0; border-right: 0; display: grid; grid-template-columns: 70px minmax(0,1fr); align-items: center; border-bottom: 1px solid var(--line); }
+  .month-overview > div:last-child { border-bottom: 0; }
+  .month-overview strong { font-size: clamp(17px,5vw,22px); margin: 0; text-align: right; }
+  .month-overview small { grid-column: 2; text-align: right; }
+  .month-overview span { font-size: 10px; }
+  .month-history-row { grid-template-columns: 1fr 1fr; gap: 10px; padding: 12px; }
+  .month-history-row > svg { display: none; }
+  .month-history-row strong { font-size: 17px; }
+  .month-row-actions .text-button { min-height: 44px; }
+  .month-calendar { flex-direction: column; align-items: flex-start; gap: 14px; }
+  .monthly-guidance { padding: 19px; gap: 12px; }
+  .monthly-guidance strong { font-size: 17px; }
+}
+.home-month-reminder { display: flex; align-items: center; gap: 14px; padding: 20px 24px; margin: 0 0 28px; border: 1px solid var(--line); border-radius: 14px; color: var(--muted); }
+.home-month-reminder .text-button { margin-left: auto; flex-shrink: 0; }
+@media (max-width: 600px) { .home-month-reminder { flex-wrap: wrap; padding: 18px; } .home-month-reminder > span { flex: 1; } }

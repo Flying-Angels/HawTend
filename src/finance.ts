@@ -30,10 +30,10 @@ export function monthsUntil(referenceDate: string, targetDate: string): number {
 }
 
 // 月末投入、有效年化转月利率、已有分配资金独立计息；结果向上取整到分。
-export function monthlySaving(budgetCents: number, allocatedCents: number, annualRate: number, months: number): { futureAllocated: number; gap: number; monthly: number | null } {
+export function monthlySaving(budgetCents: number, allocatedCents: number, annualRate: number, months: number, allocatedAnnualRate = annualRate): { futureAllocated: number; gap: number; monthly: number | null } {
   const rate = (1 + annualRate / 100) ** (1 / 12) - 1
   const factor = (1 + rate) ** months
-  const futureAllocated = Math.round(allocatedCents * factor)
+  const futureAllocated = Math.round(allocatedCents * (1 + allocatedAnnualRate / 100) ** (months / 12))
   const gap = Math.max(0, budgetCents - futureAllocated)
   if (!gap) return { futureAllocated, gap, monthly: 0 }
   if (months <= 0) return { futureAllocated, gap, monthly: null }

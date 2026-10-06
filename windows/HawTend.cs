@@ -13,7 +13,7 @@ using System.Windows.Forms;
 
 [assembly: AssemblyTitle("HawTend")]
 [assembly: AssemblyDescription("HawTend 人生手账 · 本地桌面原型")]
-[assembly: AssemblyVersion("0.0.9.0")]
+[assembly: AssemblyVersion("0.0.10.0")]
 
 internal static class Program
 {
@@ -22,6 +22,7 @@ internal static class Program
     {
         int port = 4173;
         bool noWindow = false;
+        string browserData = null;
         StaticApp server = null;
         try
         {
@@ -29,13 +30,16 @@ internal static class Program
             {
                 if (arg == "--no-window") noWindow = true;
                 else if (arg.StartsWith("--port=")) port = int.Parse(arg.Substring(7));
+                else if (arg.StartsWith("--browser-data-dir=")) browserData = Path.GetFullPath(arg.Substring(19));
                 else throw new ArgumentException("未知启动参数。请直接双击 HawTend.exe。");
             }
             if (port < 1024 || port > 65535) throw new ArgumentException("端口不在有效范围内。");
             string address = "http://127.0.0.1:" + port + "/";
+            if (browserData != null && port == 4173) throw new ArgumentException("独立测试配置请使用其他端口，避免更换个人手账空间。");
+            if (!noWindow && DesktopWindows.Send(port, DesktopWindows.OpenMessage)) return 0;
             if (IsReady(address))
             {
-                if (!noWindow) OpenWindow(address);
+                if (!noWindow) OpenWindow(address, browserData);
                 return 0;
             }
             using (Mutex mutex = new Mutex(false, "Local\\HawTend.Desktop." + port))
@@ -47,20 +51,22 @@ internal static class Program
                 {
                     for (int attempt = 0; attempt < 30; attempt++)
                     {
-                        if (IsReady(address)) { if (!noWindow) OpenWindow(address); return 0; }
+                        if (IsReady(address)) { if (!noWindow && !DesktopWindows.Send(port, DesktopWindows.OpenMessage)) OpenWindow(address, browserData); return 0; }
                         Thread.Sleep(100);
                     }
                     throw new IOException("HawTend 已在启动，请稍后重新打开。");
                 }
                 try
                 {
-                    server = new StaticApp(port);
+                    WindowRegistry windows = new WindowRegistry();
+                    server = new StaticApp(port, windows);
                     server.Start();
                     Application.EnableVisualStyles();
                     Application.SetCompatibleTextRenderingDefault(false);
-                    using (DesktopContext context = new DesktopContext(address, !noWindow))
+                    DesktopWindows.SetProcessDPIAware();
+                    using (DesktopContext context = new DesktopContext(address, port, !noWindow, browserData, windows))
                     {
-                        if (!noWindow) OpenWindow(address);
+                        if (!noWindow) context.OpenOrFocus();
                         Application.Run(context);
                     }
                 }
@@ -98,7 +104,7 @@ internal static class Program
         catch (WebException) { return false; }
     }
 
-    internal static void OpenWindow(string address)
+    internal static bool OpenWindow(string address, string browserData = null)
     {
         string[] paths = {
             Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ProgramFilesX86), "Microsoft\\Edge\\Application\\msedge.exe"),
@@ -109,11 +115,14 @@ internal static class Program
         {
             if (File.Exists(path))
             {
-                Process.Start(new ProcessStartInfo(path, "--app=\"" + address + "\"") { UseShellExecute = true });
-                return;
+                string arguments = "--app=\"" + address + "\"";
+                if (browserData != null) arguments += " --user-data-dir=\"" + browserData + "\" --no-first-run --start-minimized";
+                Process.Start(new ProcessStartInfo(path, arguments) { UseShellExecute = true, WindowStyle = ProcessWindowStyle.Hidden });
+                return true;
             }
         }
         Process.Start(new ProcessStartInfo(address) { UseShellExecute = true });
+        return false;
     }
 }
 
@@ -122,23 +131,107 @@ internal sealed class DesktopContext : ApplicationContext
     private NotifyIcon tray;
     private Icon icon;
     private ContextMenuStrip menu;
+    private readonly string address, browserData;
+    private readonly string ownerProperty = "HawTend.Owner." + Guid.NewGuid().ToString("N");
+    private readonly WindowRegistry windows;
+    private ControllerWindow controller;
+    private System.Windows.Forms.Timer timer;
+    private bool closing, hasOpened, unclaimed;
+    private DateTime closeDeadline;
 
-    internal DesktopContext(string address, bool showTray)
+    internal DesktopContext(string address, int port, bool showTray, string browserData, WindowRegistry windows)
     {
+        this.address = address; this.browserData = browserData; this.windows = windows;
+        controller = new ControllerWindow(port) { OpenApp = OpenOrFocus, ExitApp = RequestExit };
+        timer = new System.Windows.Forms.Timer { Interval = 250 };
+        timer.Tick += delegate { PollWindows(); }; timer.Start();
         if (!showTray) return;
-        using (Stream resource = Assembly.GetExecutingAssembly().GetManifestResourceStream("HawTend.Icon"))
-            icon = new Icon(resource, 32, 32);
+        using (Stream resource = Assembly.GetExecutingAssembly().GetManifestResourceStream("HawTend.TrayIcon"))
+            icon = new Icon(resource, SystemInformation.SmallIconSize);
         menu = new ContextMenuStrip();
-        menu.Items.Add("打开 HawTend", null, delegate { Program.OpenWindow(address); });
-        menu.Items.Add("退出 HawTend", null, delegate { ExitThread(); });
+        menu.Items.Add("打开 HawTend", null, delegate { OpenOrFocus(); });
+        menu.Items.Add("退出 HawTend", null, delegate { RequestExit(); });
         tray = new NotifyIcon { Icon = icon, Text = "HawTend · 人生手账", ContextMenuStrip = menu, Visible = true };
-        tray.DoubleClick += delegate { Program.OpenWindow(address); };
+        tray.DoubleClick += delegate { OpenOrFocus(); };
+    }
+
+    internal void OpenOrFocus()
+    {
+        if (closing) return;
+        foreach (WindowTicket ticket in windows.Tickets.Values)
+        {
+            if (Owned(ticket)) { DesktopWindows.Focus(ticket.Handle); return; }
+            if (!ticket.Registered && !ticket.Failed) return;
+        }
+        string nonce = Guid.NewGuid().ToString("N");
+        WindowTicket next = new WindowTicket { Nonce = nonce };
+        windows.Tickets[nonce] = next; hasOpened = true;
+        if (!Program.OpenWindow(address + "#hawtend-window=" + nonce, browserData))
+        { next.Failed = true; unclaimed = true; if (menu != null) menu.Items[1].Text = "停止本机服务"; }
+    }
+
+    private bool Owned(WindowTicket ticket)
+    {
+        if (!ticket.Registered || !DesktopWindows.IsWindow(ticket.Handle) || DesktopWindows.GetProp(ticket.Handle, ownerProperty) != new IntPtr(1)) return false;
+        uint id; DesktopWindows.GetWindowThreadProcessId(ticket.Handle, out id);
+        if (id != ticket.ProcessId) return false;
+        try { using (Process process = Process.GetProcessById((int)id)) return process.StartTime.ToUniversalTime().Ticks == ticket.ProcessStart; }
+        catch (ArgumentException) { return false; }
+        catch (InvalidOperationException) { return false; }
+        catch (System.ComponentModel.Win32Exception) { return false; }
+    }
+
+    private void PollWindows()
+    {
+        int active = 0;
+        foreach (WindowTicket ticket in windows.Tickets.Values)
+        {
+            if (!ticket.Registered && !ticket.Failed)
+            {
+                IntPtr handle = DesktopWindows.FindAppWindow(ticket.Nonce);
+                if (handle != IntPtr.Zero)
+                {
+                    uint id; DesktopWindows.GetWindowThreadProcessId(handle, out id);
+                    try
+                    {
+                        using (Process process = Process.GetProcessById((int)id)) ticket.ProcessStart = process.StartTime.ToUniversalTime().Ticks;
+                        if (DesktopWindows.SetProp(handle, ownerProperty, new IntPtr(1)))
+                        { ticket.Handle = handle; ticket.ProcessId = id; ticket.Registered = true; if (closing) DesktopWindows.PostMessage(handle, 0x10, IntPtr.Zero, IntPtr.Zero); }
+                    }
+                    catch (ArgumentException) { }
+                    catch (InvalidOperationException) { }
+                    catch (System.ComponentModel.Win32Exception) { }
+                }
+                if (!ticket.Registered && DateTime.UtcNow > ticket.Deadline)
+                {
+                    ticket.Failed = true; unclaimed = true;
+                    if (menu != null) menu.Items[1].Text = "停止本机服务";
+                    if (tray != null) tray.ShowBalloonTip(5000, "HawTend", "未能管理这个浏览器窗口。请自行关闭页面；托盘可停止本机服务。", ToolTipIcon.Info);
+                }
+            }
+            if (Owned(ticket) || (!ticket.Registered && !ticket.Failed)) active++;
+        }
+        if (active == 0 && (closing || (hasOpened && !unclaimed))) ExitThread();
+        // Respect a cancelled browser close; do not terminate a shared Edge process.
+        else if (closing && DateTime.UtcNow > closeDeadline) closing = false;
+    }
+
+    internal void RequestExit()
+    {
+        closing = true; closeDeadline = DateTime.UtcNow.AddSeconds(10);
+        foreach (WindowTicket ticket in windows.Tickets.Values)
+            if (Owned(ticket)) DesktopWindows.PostMessage(ticket.Handle, 0x10, IntPtr.Zero, IntPtr.Zero);
+        PollWindows();
     }
 
     protected override void Dispose(bool disposing)
     {
         if (disposing)
         {
+            if (timer != null) { timer.Stop(); timer.Dispose(); }
+            foreach (WindowTicket ticket in windows.Tickets.Values)
+                if (Owned(ticket)) DesktopWindows.RemoveProp(ticket.Handle, ownerProperty);
+            if (controller != null) controller.Dispose();
             if (tray != null) { tray.Visible = false; tray.Dispose(); }
             if (menu != null) menu.Dispose();
             if (icon != null) icon.Dispose();
@@ -156,9 +249,11 @@ internal sealed class StaticApp
     private readonly SemaphoreSlim slots = new SemaphoreSlim(32);
     private readonly string host;
     private volatile bool stopped;
+    private readonly WindowRegistry windows;
 
-    internal StaticApp(int port)
+    internal StaticApp(int port, WindowRegistry windows)
     {
+        this.windows = windows;
         host = "127.0.0.1:" + port;
         listener = new TcpListener(IPAddress.Loopback, port);
         listener.ExclusiveAddressUse = true;
@@ -227,6 +322,11 @@ internal sealed class StaticApp
                 bool head = request[0] == "HEAD";
                 if (request[0] != "GET" && !head) { Reply(stream, 405, "Method Not Allowed", "text/plain", new byte[0], false); return; }
                 string path = Uri.UnescapeDataString(request[1].Split('?')[0]);
+                if (path.StartsWith("/_hawtend/window/", StringComparison.Ordinal))
+                {
+                    Reply(stream, 200, "OK", "text/plain", Encoding.ASCII.GetBytes(windows.Status(path.Substring(17))), head);
+                    return;
+                }
                 if (path == "/") path = "/index.html";
                 byte[] body;
                 if (!files.TryGetValue(path, out body)) { Reply(stream, 404, "Not Found", "text/plain", new byte[0], head); return; }

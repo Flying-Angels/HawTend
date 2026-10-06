@@ -1,0 +1,9 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64">
+  <!-- Small-size companion to G: a single hawthorn and a lobed leaf. -->
+  <path d="M36 27c0-8-3-12-8-16" fill="none" stroke="#6d5948" stroke-width="4" stroke-linecap="round"/>
+  <path d="m29 23-8-1-2-6-8-1 4-6-4-7 9 3 6-3 2 7 7 2-2 7 7 6-11-1Z" fill="#66765e" stroke="#40583f" stroke-width="2" stroke-linejoin="round"/>
+  <path d="m17 9 13 14" fill="none" stroke="#b9c2a8" stroke-width="2" stroke-linecap="round"/>
+  <path d="M36 27c-4-3-9-3-14-1C9 30 6 44 12 54c5 9 17 10 27 7 11-3 18-12 16-23-1-9-10-15-19-11Z" fill="#ba7e68" stroke="#784c3f" stroke-width="2.5"/>
+  <path d="M17 37c-3 4-3 8-1 12" fill="none" stroke="#f2ded0" stroke-width="3" stroke-linecap="round"/>
+  <g fill="#edd1bc"><circle cx="30" cy="38" r="1.4"/><circle cx="43" cy="45" r="1.4"/><circle cx="28" cy="53" r="1.4"/></g>
+</svg>

@@ -1,5 +1,6 @@
 import type { Journal } from '../model'
 import { isCategoryDefinitions } from '../categories.ts'
+import { isMonthlySummaries } from '../monthly.ts'
 
 const legacyCategories = ['life', 'growth', 'travel', 'health']
 const themes = new Set(['paper', 'forest', 'dusk'])
@@ -29,13 +30,15 @@ function records(value: unknown, valid: (row: Record<string, unknown>) => boolea
 export function isJournal(value: unknown): value is Journal {
   if (!object(value) || value.schemaVersion !== 1 || !text(value.theme) || !themes.has(value.theme)) return false
   if (value.categories !== undefined && !isCategoryDefinitions(value.categories)) return false
+  if (value.monthlySummaries !== undefined && !isMonthlySummaries(value.monthlySummaries)) return false
   const categories = new Set(value.categories === undefined ? legacyCategories : value.categories.map(c => c.id))
   return records(value.moments, row => text(row.title) && date(row.date) && text(row.category) && categories.has(row.category)
     && [1, 2, 3].includes(row.importance as number) && text(row.story) && text(row.reflection)
     && textFormat(row.storyFormat) && textFormat(row.reflectionFormat))
     && records(value.goals, row => text(row.title) && date(row.date) && text(row.category) && categories.has(row.category)
       && money(row.budgetCents) && money(row.allocatedCents) && row.allocatedCents <= row.budgetCents
-      && boundedNumber(row.progress, 100) && text(row.description))
+      && boundedNumber(row.progress, 100) && text(row.description)
+      && (row.newSavingRate === undefined || boundedNumber(row.newSavingRate, 30)))
     && records(value.funds, row => text(row.name) && money(row.principalCents) && boundedNumber(row.rate, 30)
       && date(row.startDate) && typeof row.liquid === 'boolean' && text(row.mode) && modes.has(row.mode)
       && (row.liquid ? row.maturityDate === '' : date(row.maturityDate) && row.maturityDate > row.startDate))
