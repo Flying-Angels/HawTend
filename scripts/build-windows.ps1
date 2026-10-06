@@ -90,7 +90,13 @@ try {
     if ($LASTEXITCODE -ne 0) { throw 'Windows build failed.' }
     # A separate ICO lets shortcuts use the new artwork without reusing cached EXE icons.
     Copy-Item -LiteralPath $iconPath -Destination (Join-Path $releaseDir 'HawTend-transparent.ico') -Force
-    foreach ($dll in @($sdkCore, $sdkForms, $sdkLoader)) { Copy-Item -LiteralPath $dll -Destination $releaseDir -Force }
+    foreach ($dll in @($sdkCore, $sdkForms, $sdkLoader)) {
+        $destination = Join-Path $releaseDir ([IO.Path]::GetFileName($dll))
+        # A running app locks its SDK. Identical files need no replacement.
+        if ((Test-Path -LiteralPath $destination) -and
+            (Get-FileHash -LiteralPath $destination).Hash -eq (Get-FileHash -LiteralPath $dll).Hash) { continue }
+        Copy-Item -LiteralPath $dll -Destination $destination -Force
+    }
     Copy-Item -LiteralPath (Join-Path $projectDir 'public/licenses/WebView2-SDK-LICENSE.txt') -Destination $releaseDir -Force
     Get-Item -LiteralPath $exePath | Select-Object FullName,Length
     Get-FileHash -LiteralPath $exePath -Algorithm SHA256

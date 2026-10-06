@@ -61,24 +61,29 @@ internal sealed class DesktopShell : Form
         view.DefaultBackgroundColor = BackColor;
         loading.Text = "正在打开你的手账…"; loading.Font = new Font("Microsoft YaHei UI", 11); loading.TextAlign = ContentAlignment.MiddleCenter;
         Controls.Add(view); Controls.Add(loading); Controls.Add(caption);
-        Resize += delegate
+        Resize += delegate { LayoutWindow(); };
+        LocationChanged += delegate
         {
-            if (changingState) { LayoutWindow(); return; }
-            FormWindowState next = WindowState;
-            // WinForms otherwise adds its removed non-client frame on restore.
-            // Keep the actual normal bounds through maximize/minimize cycles.
-            if (next == FormWindowState.Normal && previousState != FormWindowState.Normal && !normalBounds.IsEmpty)
-            { previousState = next; Bounds = normalBounds; }
-            if (next == FormWindowState.Normal) normalBounds = Bounds;
-            previousState = next; LayoutWindow();
+            if (!changingState && previousState == FormWindowState.Normal && !IsIconic(Handle) && !IsZoomed(Handle)) normalBounds = CurrentWindowBounds();
         };
-        LocationChanged += delegate { if (!changingState && WindowState == FormWindowState.Normal && previousState == FormWindowState.Normal) normalBounds = Bounds; };
-        normalBounds = Bounds;
+        normalBounds = CurrentWindowBounds();
         Shown += async delegate { await InitializeView(); };
         LayoutWindow();
     }
 
     private int Px(int logical) { return (int)Math.Round(logical * scale); }
+    private Rectangle CurrentWindowBounds()
+    {
+        NativeRectangle rect;
+        return IsHandleCreated && GetWindowRect(Handle, out rect) ? Rectangle.FromLTRB(rect.left, rect.top, rect.right, rect.bottom) : Bounds;
+    }
+    private void RestoreWindowBounds(Rectangle bounds)
+    {
+        if (bounds.IsEmpty) return;
+        // WinForms caches dimensions including the removed native frame.
+        // Restore the real outer rectangle rather than reapplying that cache.
+        SetWindowPos(Handle, IntPtr.Zero, bounds.X, bounds.Y, bounds.Width, bounds.Height, 0x14);
+    }
     private void LayoutWindow()
     {
         if (minimize == null) return;
@@ -109,15 +114,24 @@ internal sealed class DesktopShell : Form
     private void ChangeState(FormWindowState next)
     {
         if (next == FormWindowState.Minimized) beforeMinimized = WindowState;
-        if (WindowState == FormWindowState.Normal) normalBounds = Bounds;
+        if (WindowState == FormWindowState.Normal) normalBounds = CurrentWindowBounds();
         Rectangle restore = normalBounds; changingState = true;
-        try { WindowState = next; if (next == FormWindowState.Normal && !restore.IsEmpty) Bounds = restore; }
+        try { WindowState = next; if (next == FormWindowState.Normal) RestoreWindowBounds(restore); }
         finally { changingState = false; previousState = WindowState; LayoutWindow(); }
     }
     internal void OpenOrFocus()
     {
+        Rectangle restore = normalBounds;
+        bool restoringNormal = WindowState == FormWindowState.Minimized && beforeMinimized == FormWindowState.Normal;
         if (WindowState == FormWindowState.Minimized) ChangeState(beforeMinimized);
-        DesktopWindows.Focus(Handle);
+        bool wasChanging = changingState; changingState = true;
+        try
+        {
+            DesktopWindows.Focus(Handle);
+            // Activation can apply WinForms' cached frame dimensions too.
+            if (restoringNormal) RestoreWindowBounds(restore);
+        }
+        finally { changingState = wasChanging; previousState = WindowState; LayoutWindow(); }
     }
 
     private async System.Threading.Tasks.Task InitializeView()
@@ -217,7 +231,14 @@ internal sealed class DesktopShell : Form
 
     protected override CreateParams CreateParams
     {
-        get { CreateParams cp = base.CreateParams; cp.Style |= 0x40000 | 0x20000 | 0x10000 | 0x80000; return cp; }
+        get
+        {
+            CreateParams cp = base.CreateParams;
+            // Keep resizing and system commands, but own the entire caption.
+            cp.Style &= ~0x00c00000; // WS_CAPTION
+            cp.Style |= 0x40000 | 0x20000 | 0x10000 | 0x80000;
+            return cp;
+        }
     }
     protected override void OnHandleCreated(EventArgs e)
     {
@@ -227,20 +248,57 @@ internal sealed class DesktopShell : Form
     }
     protected override void WndProc(ref Message m)
     {
+        if (m.Msg == 0x47 && !changingState && previousState != FormWindowState.Normal && !IsIconic(Handle) && !IsZoomed(Handle))
+        {
+            // Keep the guard for the whole WINDOWPOSCHANGED: WinForms can
+            // resize again after its nested WM_SIZE handler has returned.
+            Rectangle restore = normalBounds;
+            changingState = true;
+            try { base.WndProc(ref m); previousState = FormWindowState.Normal; RestoreWindowBounds(restore); LayoutWindow(); }
+            finally { changingState = false; }
+            return;
+        }
+        if (m.Msg == 0x5) // WM_SIZE also arrives when WinForms omits Resize.
+        {
+            FormWindowState next = m.WParam.ToInt32() == 1 ? FormWindowState.Minimized : m.WParam.ToInt32() == 2 ? FormWindowState.Maximized : FormWindowState.Normal;
+            if (next == FormWindowState.Minimized && previousState != FormWindowState.Minimized) beforeMinimized = previousState;
+            bool wasChanging = changingState;
+            changingState = true;
+            try
+            {
+                base.WndProc(ref m);
+                previousState = next;
+                if (next == FormWindowState.Normal && !wasChanging) normalBounds = CurrentWindowBounds();
+                LayoutWindow();
+            }
+            finally { changingState = wasChanging; }
+            return;
+        }
         if (m.Msg == 0x112 && !changingState)
         {
             int command = m.WParam.ToInt32() & 0xfff0;
             if (command == 0xf030 || command == 0xf020 || command == 0xf120)
             {
                 if (command == 0xf020) beforeMinimized = WindowState;
-                if (WindowState == FormWindowState.Normal) normalBounds = Bounds;
+                if (WindowState == FormWindowState.Normal) normalBounds = CurrentWindowBounds();
                 Rectangle restore = normalBounds; changingState = true;
-                try { base.WndProc(ref m); if (WindowState == FormWindowState.Normal && !restore.IsEmpty) Bounds = restore; }
+                try { base.WndProc(ref m); if (WindowState == FormWindowState.Normal) RestoreWindowBounds(restore); }
                 finally { changingState = false; previousState = WindowState; LayoutWindow(); }
                 return;
             }
         }
-        if (m.Msg == 0x83 && m.WParam != IntPtr.Zero) { m.Result = IntPtr.Zero; return; }
+        // Both NCCALCSIZE forms keep the entire window as our client area.
+        if (m.Msg == 0x83) { m.Result = IntPtr.Zero; return; }
+        // THICKFRAME/SYSMENU can still make DefWindowProc paint a classic
+        // caption even without WS_CAPTION. Our controls already paint it.
+        if (m.Msg == 0x85) { m.Result = IntPtr.Zero; return; } // WM_NCPAINT
+        if (m.Msg == 0x86 && WindowState != FormWindowState.Minimized)
+        {
+            // Preserve native activation; -1 only prevents its frame repaint.
+            m.LParam = new IntPtr(-1);
+            base.WndProc(ref m);
+            return;
+        }
         if (m.Msg == 0x84 && WindowState == FormWindowState.Normal)
         {
             long value = m.LParam.ToInt64(); Point p = PointToClient(new Point((short)(value & 0xffff), (short)((value >> 16) & 0xffff)));
@@ -256,7 +314,12 @@ internal sealed class DesktopShell : Form
         base.Dispose(disposing);
     }
     private struct FrameMargin { internal int left, right, top, bottom; }
+    private struct NativeRectangle { internal int left, top, right, bottom; }
     [DllImport("user32.dll")] private static extern bool ReleaseCapture();
+    [DllImport("user32.dll")] private static extern bool GetWindowRect(IntPtr handle, out NativeRectangle rect);
+    [DllImport("user32.dll")] private static extern bool IsIconic(IntPtr handle);
+    [DllImport("user32.dll")] private static extern bool IsZoomed(IntPtr handle);
+    [DllImport("user32.dll")] private static extern bool SetWindowPos(IntPtr handle, IntPtr after, int x, int y, int width, int height, uint flags);
     [DllImport("user32.dll")] private static extern IntPtr SendMessage(IntPtr handle, int message, IntPtr w, IntPtr l);
     [DllImport("dwmapi.dll")] private static extern int DwmSetWindowAttribute(IntPtr handle, int attribute, ref int value, int size);
     [DllImport("dwmapi.dll")] private static extern int DwmExtendFrameIntoClientArea(IntPtr handle, ref FrameMargin margin);
