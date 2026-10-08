@@ -7,7 +7,7 @@ import { CategoryField, CategoryManager, CategoryProvider, useCategories, useCat
 import { categoryAppearance, isCategoryDefinitions, journalCategories, withCategories } from './categories'
 import { cents, exactYuan, futureValue, monthlySaving, monthsUntil, yuan } from './finance'
 import { readJournal, writeJournal } from './storage'
-import { MAX_TIMELINE_YEAR, MAX_TIMELINE_YEARS, MIN_TIMELINE_YEAR, timelineBounds, timelineMarks, timelineRange } from './timeline-range'
+import { MAX_TIMELINE_MONTH, MAX_TIMELINE_MONTHS, MIN_TIMELINE_MONTH, TIMELINE_PRESETS, centeredTimelineRange, isTimelineMonth, lastTimelineMonth, monthAt, monthIndex, monthsForZoom, timelineBounds, timelineMarks, timelinePeriodLabel, timelineRange, timelineSpanLabel, zoomForMonths } from './timeline-range'
 import type { TimelineRange } from './timeline-range'
 import { localDay, welcomeDay, yearsAfter } from './calendar'
 import { useToday } from './useToday'
@@ -59,27 +59,26 @@ function Modal({ title, subtitle, children, close }: { title: string; subtitle?:
 }
 
 function TimelineRangeEditor({ range, apply, close }: { range: TimelineRange; apply: (range: TimelineRange) => void; close: () => void }) {
-  const [startYear, setStartYear] = useState(String(range.startYear))
-  const [endYear, setEndYear] = useState(String(range.startYear + range.years - 1))
+  const [startMonth, setStartMonth] = useState(range.startMonth)
+  const [endMonth, setEndMonth] = useState(lastTimelineMonth(range))
   const [error, setError] = useState('')
   const submit = (event: FormEvent) => {
     event.preventDefault()
-    const first = Number(startYear), last = Number(endYear)
-    if (!startYear.trim() || !endYear.trim() || !Number.isInteger(first) || !Number.isInteger(last) || first < MIN_TIMELINE_YEAR || last > MAX_TIMELINE_YEAR || first > MAX_TIMELINE_YEAR || last < MIN_TIMELINE_YEAR) { setError(`请填写 ${MIN_TIMELINE_YEAR}–${MAX_TIMELINE_YEAR} 之间的整数年份。`); return }
-    if (last < first) { setError('结束年份不能早于起始年份。'); return }
-    if (last - first + 1 > MAX_TIMELINE_YEARS) { setError(`一次最多浏览 ${MAX_TIMELINE_YEARS} 年，请缩短时间范围。`); return }
-    apply({ startYear: first, years: last - first + 1 })
+    if (!isTimelineMonth(startMonth) || !isTimelineMonth(endMonth)) { setError('请选择 1900 年 1 月至 2200 年 12 月之间的月份。'); return }
+    const months = monthIndex(endMonth) - monthIndex(startMonth) + 1
+    if (months < 1) { setError('结束月份不能早于起始月份。'); return }
+    if (months > MAX_TIMELINE_MONTHS) { setError('一次最多浏览 100 年，请缩短时间范围。'); return }
+    apply(timelineRange(startMonth, months))
   }
-  const preset = (years: number) => {
-    const first = Number(startYear)
-    const next = timelineRange(startYear.trim() && Number.isInteger(first) ? first : range.startYear, years)
-    setStartYear(String(next.startYear)); setEndYear(String(next.startYear + years - 1)); setError('')
+  const preset = (months: number) => {
+    const next = timelineRange(isTimelineMonth(startMonth) ? startMonth : range.startMonth, months)
+    setStartMonth(next.startMonth); setEndMonth(lastTimelineMonth(next)); setError('')
   }
   return <Modal title="想看哪一段日子？" subtitle="选一段时间，把走过的路和未来的期待放在一起。" close={close}>
     <form className="editor range-editor" onSubmit={submit} noValidate>
-      <div className="form-grid"><label>起始年份<input type="number" min={MIN_TIMELINE_YEAR} max={MAX_TIMELINE_YEAR} step="1" inputMode="numeric" value={startYear} onChange={e => { setStartYear(e.target.value); setError('') }} /></label><label>结束年份<input type="number" min={MIN_TIMELINE_YEAR} max={MAX_TIMELINE_YEAR} step="1" inputMode="numeric" value={endYear} onChange={e => { setEndYear(e.target.value); setError('') }} /></label></div>
-      <p className="range-editor-hint">包含起止两年，例如 2026–2029，共 4 年。</p>
-      <div className="range-preset-group" aria-label="快捷时间跨度"><span>快速选择</span><div>{[1, 3, 5, 10, 20, 50, 100].map(years => <button type="button" key={years} className={`filter-chip ${Number(endYear) - Number(startYear) + 1 === years ? 'selected' : ''}`} onClick={() => preset(years)}>{years} 年</button>)}</div></div>
+      <div className="form-grid"><label>起始月份<input type="month" min={MIN_TIMELINE_MONTH} max={MAX_TIMELINE_MONTH} value={startMonth} onChange={e => { setStartMonth(e.target.value); setError('') }} /></label><label>结束月份<input type="month" min={MIN_TIMELINE_MONTH} max={MAX_TIMELINE_MONTH} value={endMonth} onChange={e => { setEndMonth(e.target.value); setError('') }} /></label></div>
+      <p className="range-editor-hint">包含起止月份。例如 2026 年 10 月至 12 月，共 3 个月。</p>
+      <div className="range-preset-group" aria-label="快捷时间跨度"><span>快速选择</span><div>{TIMELINE_PRESETS.map(months => <button type="button" key={months} className={`filter-chip ${monthIndex(endMonth) - monthIndex(startMonth) + 1 === months ? 'selected' : ''}`} onClick={() => preset(months)}>{timelineSpanLabel(months)}</button>)}</div></div>
       {error && <p className="form-error" role="alert">{error}</p>}
       <div className="editor-footer"><button type="button" className="quiet-button" onClick={close}>取消</button><button type="submit" className="primary-button">应用时间范围<Icon name="arrow" size={16} /></button></div>
     </form>
@@ -92,12 +91,13 @@ function Timeline({ journal, compact = false, open }: { journal: Journal; compac
   const [filter, setFilter] = useState<Category | 'all'>('all')
   useEffect(() => { if (filter !== 'all' && !categories.some(c => c.id === filter)) setFilter('all') }, [categories, filter])
   const [onlyImportant, setOnlyImportant] = useState(false)
-  const [range, setRange] = useState<TimelineRange>(() => timelineRange(Number(today.slice(0, 4)), 4))
+  const [range, setRange] = useState<TimelineRange>(() => timelineRange(`${today.slice(0, 4)}-01`, 36))
+  const [zoom, setZoom] = useState(50)
   const [editingRange, setEditingRange] = useState(false)
   const closeRange = useCallback(() => setEditingRange(false), [])
   const [curve, setCurve] = useState(false)
   const scroll = useRef<HTMLDivElement>(null)
-  const scrollTarget = useRef<'start' | 'today' | null>(null)
+  const scrollTarget = useRef<string | null>(null)
   const pan = useRef<{ x: number; left: number; moved: boolean } | null>(null)
   const items = [
     ...journal.moments.map(m => ({ kind: 'moment' as const, item: m })),
@@ -120,16 +120,38 @@ function Timeline({ journal, compact = false, open }: { journal: Journal; compac
     if (!scroll.current || !scrollTarget.current) return
     const target = scrollTarget.current
     scrollTarget.current = null
-    scroll.current.scrollTo({ left: target === 'today' ? Math.max(0, todayX - scroll.current.clientWidth * .4) : 0, behavior: target === 'today' && !matchMedia('(prefers-reduced-motion: reduce)').matches ? 'smooth' : 'instant' })
+    scroll.current.scrollTo({ left: target === 'start' ? 0 : Math.max(0, position(target) - scroll.current.clientWidth * .4), behavior: 'instant' })
   }, [range, todayX])
-  const changeRange = (next: TimelineRange) => { scrollTarget.current = 'start'; setRange(next) }
-  const returnToday = () => { scrollTarget.current = 'today'; setRange(timelineRange(Number(today.slice(0, 4)), range.years)) }
-  const lastYear = range.startYear + range.years - 1
+  const changeRange = (next: TimelineRange) => { scrollTarget.current = 'start'; setRange(next); setZoom(zoomForMonths(next.months)) }
+  const returnToday = () => { scrollTarget.current = today; setRange(centeredTimelineRange(today, range.months)) }
+  const zoomRange = (value: number) => {
+    setZoom(value)
+    const months = monthsForZoom(value)
+    if (months === range.months) return
+    const viewport = scroll.current
+    const todayVisible = todayX >= (viewport?.scrollLeft ?? 0) && todayX <= (viewport?.scrollLeft ?? 0) + (viewport?.clientWidth ?? width)
+    const focusX = Math.max(64, Math.min(width - 188, (viewport?.scrollLeft ?? 0) + (viewport?.clientWidth ?? width) / 2))
+    const focusDay = todayVisible ? today : new Date(start + (focusX - 64) / (width - 252) * (end - start)).toISOString().slice(0, 10)
+    scrollTarget.current = focusDay
+    setRange(centeredTimelineRange(focusDay, months))
+  }
+  const spanLabel = timelineSpanLabel(range.months)
   const isEmpty = visibleItems.length === 0
   return <section className={`timeline-section ${compact ? 'compact' : 'expanded'}${isEmpty ? ' is-empty' : ''}`}>
     <div className="section-heading"><div><span className="eyebrow">THE DAYS THAT MAKE YOU</span><h2>{compact ? '一路走来，也一路向前' : '每一个节点，都是你的一部分'}</h2></div>{compact ? <button className="text-button" onClick={() => { window.dispatchEvent(new Event('open-timeline')) }}>展开时间轴<Icon name="arrow" size={16} /></button> : <button className="quiet-button" onClick={returnToday}><Icon name="sun" size={16} />回到今天</button>}</div>
     <div className="timeline-toolbar"><div className="filter-group" aria-label="时间轴分类"><button className={`filter-chip ${filter === 'all' ? 'selected' : ''}`} onClick={() => setFilter('all')}>全部</button>{categories.map(c => <button key={c.id} className={`filter-chip ${filter === c.id ? 'selected' : ''}`} onClick={() => setFilter(c.id)}><span className="color-dot" style={{ background: c.color }} />{c.label}</button>)}</div>{!compact && <label className="checkbox-label"><input type="checkbox" checked={onlyImportant} onChange={e => setOnlyImportant(e.target.checked)} />只看重要节点</label>}</div>
-    {!compact && <div className="range-toolbar"><div className="range-controls"><button className="icon-button" aria-label="上一段时间" title={`向前查看 ${range.years} 年`} disabled={range.startYear === MIN_TIMELINE_YEAR} onClick={() => changeRange(timelineRange(range.startYear - range.years, range.years))}><Icon name="chevron" className="reverse" size={17} /></button><button className="range-period" title="设置起止年份" aria-label={`设置时间范围，${range.startYear} 至 ${lastYear}，共 ${range.years} 年`} onClick={() => setEditingRange(true)}><span>{range.startYear === lastYear ? `${range.startYear} 年` : `${range.startYear} — ${lastYear}`}</span><Icon name="chevron" className="range-chevron" size={12} /></button><button className="icon-button" aria-label="下一段时间" title={`向后查看 ${range.years} 年`} disabled={lastYear === MAX_TIMELINE_YEAR} onClick={() => changeRange(timelineRange(range.startYear + range.years, range.years))}><Icon name="chevron" size={17} /></button></div><label className="zoom-label"><span>跨度</span><input aria-label="时间跨度" aria-valuetext={`共 ${range.years} 年`} type="range" min="1" max={MAX_TIMELINE_YEARS} step="1" value={range.years} onChange={e => changeRange(timelineRange(range.startYear, Number(e.target.value)))} /><output>{range.years} 年</output></label><button className={`quiet-button ${curve ? 'active' : ''}`} aria-pressed={curve} onClick={() => setCurve(!curve)}><Icon name="wallet" size={16} />资金轨迹</button></div>}
+    {!compact && <div className="range-toolbar">
+      <div className="range-controls">
+        <button className="icon-button" aria-label="上一段时间" title={`向前查看 ${spanLabel}`} disabled={range.startMonth === MIN_TIMELINE_MONTH} onClick={() => changeRange(timelineRange(monthAt(monthIndex(range.startMonth) - range.months), range.months))}><Icon name="chevron" className="reverse" size={17} /></button>
+        <button className="range-period" title="设置起止月份" aria-label={`设置时间范围，${range.startMonth} 至 ${lastTimelineMonth(range)}，共 ${spanLabel}`} onClick={() => setEditingRange(true)}><span>{timelinePeriodLabel(range)}</span><Icon name="chevron" className="range-chevron" size={12} /></button>
+        <button className="icon-button" aria-label="下一段时间" title={`向后查看 ${spanLabel}`} disabled={lastTimelineMonth(range) === MAX_TIMELINE_MONTH} onClick={() => changeRange(timelineRange(monthAt(monthIndex(range.startMonth) + range.months), range.months))}><Icon name="chevron" size={17} /></button>
+      </div>
+      <label className="zoom-label"><span>跨度</span><span className="zoom-scale">
+        <input aria-label="时间跨度" aria-valuetext={spanLabel} type="range" min="0" max="100" step="0.1" value={zoom} onChange={e => zoomRange(Number(e.target.value))} />
+        <span className="zoom-landmarks" aria-hidden="true"><span>1个月</span><span>3年</span><span>100年</span></span>
+      </span><output>{spanLabel}</output></label>
+      <button className={`quiet-button ${curve ? 'active' : ''}`} aria-pressed={curve} onClick={() => setCurve(!curve)}><Icon name="wallet" size={16} />资金轨迹</button>
+    </div>}
     {isEmpty && <div className="timeline-empty" role="status"><Icon name="leaf" size={28} /><div><p>这段时间还没有节点</p><span>换个分类，或写下一个值得记住的日子。</span></div></div>}
     <div ref={scroll} className="timeline-scroll" tabIndex={0} role="region" aria-label="可横向拖动的人生时间轴" onKeyDown={e => { if (e.target === e.currentTarget && ['ArrowLeft', 'ArrowRight'].includes(e.key)) { e.preventDefault(); scroll.current!.scrollLeft += e.key === 'ArrowLeft' ? -180 : 180 } }}
       onPointerDown={e => { if (e.pointerType !== 'mouse' || (e.target as HTMLElement).closest('button')) return; pan.current = { x: e.clientX, left: scroll.current!.scrollLeft, moved: false }; e.currentTarget.setPointerCapture(e.pointerId) }}
