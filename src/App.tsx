@@ -7,8 +7,9 @@ import { CategoryField, CategoryManager, CategoryProvider, useCategories, useCat
 import { categoryAppearance, isCategoryDefinitions, journalCategories, withCategories } from './categories'
 import { cents, exactYuan, futureValue, monthlySaving, monthsUntil, yuan } from './finance'
 import { readJournal, writeJournal } from './storage'
-import { MAX_TIMELINE_MONTH, MAX_TIMELINE_MONTHS, MIN_TIMELINE_MONTH, TIMELINE_PRESETS, centeredTimelineRange, isTimelineMonth, lastTimelineMonth, monthAt, monthIndex, monthsForZoom, timelineBounds, timelineMarks, timelinePeriodLabel, timelineRange, timelineSpanLabel, zoomForMonths } from './timeline-range'
+import { MAX_TIMELINE_MONTH, MIN_TIMELINE_MONTH, centeredTimelineRange, lastTimelineMonth, monthAt, monthIndex, monthsForZoom, timelineBounds, timelineMarks, timelinePeriodLabel, timelineRange, timelineSpanLabel, zoomForMonths } from './timeline-range'
 import type { TimelineRange } from './timeline-range'
+import { MonthRangeEditor } from './MonthRangeEditor'
 import { localDay, welcomeDay, yearsAfter } from './calendar'
 import { useToday } from './useToday'
 import { RichText } from './RichText'
@@ -38,7 +39,7 @@ function Modal({ title, subtitle, children, close }: { title: string; subtitle?:
   useEffect(() => {
     const previous = document.activeElement as HTMLElement | null
     const container = ref.current!
-    const focusable = () => [...container.querySelectorAll<HTMLElement>('button, input, select, textarea, a[href]')].filter(el => !el.matches(':disabled') && el.getClientRects().length > 0)
+    const focusable = () => [...container.querySelectorAll<HTMLElement>('button, input, select, textarea, a[href]')].filter(el => el.tabIndex >= 0 && !el.matches(':disabled') && el.getClientRects().length > 0)
     focusable()[0]?.focus()
     const key = (e: KeyboardEvent) => {
       if (e.key === 'Escape') close()
@@ -59,29 +60,8 @@ function Modal({ title, subtitle, children, close }: { title: string; subtitle?:
 }
 
 function TimelineRangeEditor({ range, apply, close }: { range: TimelineRange; apply: (range: TimelineRange) => void; close: () => void }) {
-  const [startMonth, setStartMonth] = useState(range.startMonth)
-  const [endMonth, setEndMonth] = useState(lastTimelineMonth(range))
-  const [error, setError] = useState('')
-  const submit = (event: FormEvent) => {
-    event.preventDefault()
-    if (!isTimelineMonth(startMonth) || !isTimelineMonth(endMonth)) { setError('请选择 1900 年 1 月至 2200 年 12 月之间的月份。'); return }
-    const months = monthIndex(endMonth) - monthIndex(startMonth) + 1
-    if (months < 1) { setError('结束月份不能早于起始月份。'); return }
-    if (months > MAX_TIMELINE_MONTHS) { setError('一次最多浏览 100 年，请缩短时间范围。'); return }
-    apply(timelineRange(startMonth, months))
-  }
-  const preset = (months: number) => {
-    const next = timelineRange(isTimelineMonth(startMonth) ? startMonth : range.startMonth, months)
-    setStartMonth(next.startMonth); setEndMonth(lastTimelineMonth(next)); setError('')
-  }
   return <Modal title="想看哪一段日子？" subtitle="选一段时间，把走过的路和未来的期待放在一起。" close={close}>
-    <form className="editor range-editor" onSubmit={submit} noValidate>
-      <div className="form-grid"><label>起始月份<input type="month" min={MIN_TIMELINE_MONTH} max={MAX_TIMELINE_MONTH} value={startMonth} onChange={e => { setStartMonth(e.target.value); setError('') }} /></label><label>结束月份<input type="month" min={MIN_TIMELINE_MONTH} max={MAX_TIMELINE_MONTH} value={endMonth} onChange={e => { setEndMonth(e.target.value); setError('') }} /></label></div>
-      <p className="range-editor-hint">包含起止月份。例如 2026 年 10 月至 12 月，共 3 个月。</p>
-      <div className="range-preset-group" aria-label="快捷时间跨度"><span>快速选择</span><div>{TIMELINE_PRESETS.map(months => <button type="button" key={months} className={`filter-chip ${monthIndex(endMonth) - monthIndex(startMonth) + 1 === months ? 'selected' : ''}`} onClick={() => preset(months)}>{timelineSpanLabel(months)}</button>)}</div></div>
-      {error && <p className="form-error" role="alert">{error}</p>}
-      <div className="editor-footer"><button type="button" className="quiet-button" onClick={close}>取消</button><button type="submit" className="primary-button">应用时间范围<Icon name="arrow" size={16} /></button></div>
-    </form>
+    <MonthRangeEditor range={range} apply={apply} close={close} />
   </Modal>
 }
 
