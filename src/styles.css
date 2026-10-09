@@ -314,6 +314,41 @@ input[type='range'] { accent-color: var(--accent); height: 24px; cursor: pointer
 .editor > label, .form-grid > label { display: flex; flex-direction: column; gap: 9px; font-size: 12px; color: var(--muted); margin-bottom: 19px; }
 .editor input:not([type='range']), .editor textarea, .editor select { width: 100%; padding: 11px 12px; border: 1px solid var(--line); border-radius: 6px; background: var(--surface); color: var(--ink); font-size: 13px; line-height: 1.65; min-height: 45px; }
 .editor textarea { resize: vertical; min-height: 95px; }
+.date-field { min-width: 0; margin-bottom: 19px; }
+.date-field > label { display: block; font-size: 12px; color: var(--muted); margin-bottom: 9px; }
+.date-field-value { display: flex; align-items: center; justify-content: space-between; gap: 10px; width: 100%; min-height: 45px; padding: 11px 12px; border: 1px solid var(--line); border-radius: 6px; background: var(--surface); text-align: left; font: 14px/1.65 var(--serif); }
+.date-field-value svg { color: var(--muted); }
+.date-field-value:hover, .date-field-value[aria-expanded='true'] { border-color: var(--accent); background: var(--accent-light); }
+.calendar-popup { position: fixed; inset: auto; margin: 0; padding: 0; width: 368px; max-width: 100vw; max-height: calc(100dvh - 16px); border: 0; border-radius: 12px; overflow: auto; color: var(--ink); background: var(--surface); box-shadow: 0 15px 60px #1b231f30; }
+.calendar-popup::backdrop { background: transparent; }
+.calendar-surface { padding: 8px 16px 5px; border: 1px solid var(--line); border-radius: inherit; }
+.calendar-titlebar { display: flex; align-items: center; justify-content: space-between; padding-bottom: 3px; color: var(--muted); font-size: 10px; }
+.calendar-titlebar .icon-button { min-width: 36px; min-height: 36px; }
+.calendar-surface .month-picker-heading { margin-bottom: 8px; }
+.calendar-period { display: inline-flex; align-items: center; justify-content: center; gap: 7px; min-height: 44px; padding: 4px 10px; border-radius: 8px; font: 400 21px var(--number); }
+.calendar-period small { font: 12px var(--serif); }
+.calendar-period:hover { background: var(--accent-light); }
+.calendar-weekdays, .calendar-grid { display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); gap: 4px; }
+.calendar-weekdays { color: var(--muted); font: 11px/32px var(--serif); text-align: center; }
+.calendar-day { position: relative; min-height: 44px; border-radius: 7px; border: 1px solid transparent; font: 18px var(--number); }
+.calendar-day.adjacent { color: var(--muted); }
+.calendar-day:disabled { cursor: default; opacity: .3; }
+.calendar-day:not(:disabled):hover { border-color: var(--accent); background: var(--accent-light); }
+.calendar-day.selected, .calendar-day.selected:not(:disabled):hover { color: var(--surface); background: var(--accent); }
+.calendar-day.current::after { content: ''; width: 3px; height: 3px; border-radius: 50%; background: currentColor; position: absolute; bottom: 4px; left: calc(50% - 1.5px); }
+.calendar-footer { display: flex; align-items: center; justify-content: space-between; gap: 10px; border-top: 1px solid var(--line); margin-top: 9px; color: var(--muted); font-size: 10px; }
+.calendar-footer .text-button { font-size: 11px; }
+.calendar-popup .month-picker-cell:disabled { cursor: default; opacity: .3; }
+.calendar-popup .form-error { margin: 10px 0; }
+@media (max-width: 760px) {
+  .date-field > label { font-size: 11px; }
+  .date-field-value { font-size: 16px; }
+  .calendar-popup { inset: auto 0 0 !important; width: 100%; max-height: calc(100dvh - 16px); border-radius: 14px 14px 0 0; padding-bottom: env(safe-area-inset-bottom); }
+  .calendar-popup::backdrop { background: #30352c44; }
+  .calendar-surface { padding: 8px 6px 7px; border-left: 0; border-right: 0; }
+  .calendar-grid { gap: 0; }
+  .calendar-titlebar, .calendar-footer { margin-left: 10px; margin-right: 10px; }
+}
 .form-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 18px; }
 .category-field { min-width: 0; margin-bottom: 19px; }
 .category-field-heading { display: flex; justify-content: space-between; align-items: center; gap: 8px; min-height: 20px; margin-bottom: 8px; color: var(--muted); font-size: 12px; }

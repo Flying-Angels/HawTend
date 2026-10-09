@@ -1,7 +1,7 @@
 {
   "name": "hawtend",
   "private": true,
-  "version": "0.0.15",
+  "version": "0.0.16",
   "type": "module",
   "scripts": {
     "dev": "vite --host 127.0.0.1",
@@ -12,7 +12,8 @@
     "check:calendar": "node --experimental-strip-types scripts/check-calendar.ts",
     "check:monthly": "node --experimental-strip-types scripts/check-monthly.ts",
     "check:assets": "node --experimental-strip-types scripts/check-assets.ts",
-    "check:timeline": "node --experimental-strip-types scripts/check-timeline.ts"
+    "check:timeline": "node --experimental-strip-types scripts/check-timeline.ts",
+    "check:picker": "node --experimental-strip-types scripts/check-date-picker.ts"
   },
   "dependencies": {
     "@supabase/supabase-js": "2.117.2",

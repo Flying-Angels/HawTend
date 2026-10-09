@@ -10,6 +10,8 @@ import { readJournal, writeJournal } from './storage'
 import { MAX_TIMELINE_MONTH, MIN_TIMELINE_MONTH, centeredTimelineRange, lastTimelineMonth, monthAt, monthIndex, monthsForZoom, timelineBounds, timelineMarks, timelinePeriodLabel, timelineRange, timelineSpanLabel, zoomForMonths } from './timeline-range'
 import type { TimelineRange } from './timeline-range'
 import { MonthRangeEditor } from './MonthRangeEditor'
+import { CalendarField } from './CalendarField'
+import { isCalendarDay } from './calendar-picker'
 import { localDay, welcomeDay, yearsAfter } from './calendar'
 import { useToday } from './useToday'
 import { RichText } from './RichText'
@@ -199,6 +201,7 @@ function MomentForm({ item, fresh, save, sample = false }: { item: Moment; fresh
     event.preventDefault()
     setError('')
     if (!draft.title.trim()) { setError('给这一天写个标题吧。'); return }
+    if (!isCalendarDay(draft.date)) { setError('请选择有效的发生日期。'); return }
     if (draft.date > localDay()) { setError('大事记记录已发生的日子，未来的事情请添加为目标。'); return }
     if (changedDate && !preview) { setPreview(true); return }
     setPending(true)
@@ -208,7 +211,7 @@ function MomentForm({ item, fresh, save, sample = false }: { item: Moment; fresh
   }
   return <form className="editor" onSubmit={submit}><div className="detail-tags"><CategoryTag category={draft.category} /><span className="importance-tag"><Icon name={draft.importance === 3 ? 'star' : 'sun'} size={14} />{importanceLabels[draft.importance]}</span></div>
     <label>这一天的标题<input required maxLength={120} value={draft.title} onChange={e => setDraft({ ...draft, title: e.target.value })} placeholder="有什么值得记住？" /></label>
-    <div className="form-grid"><label>发生日期<input required type="date" max={today} value={draft.date} onChange={e => { setDraft({ ...draft, date: e.target.value }); setPreview(false) }} /></label><CategoryField value={draft.category} change={category => setDraft(current => ({ ...current, category }))} manage={() => setManageCategories(!manageCategories)} expanded={manageCategories} managerId={managerId} /></div>
+    <div className="form-grid"><CalendarField label="发生日期" max={today} value={draft.date} change={date => { setDraft({ ...draft, date }); setPreview(false) }} /><CategoryField value={draft.category} change={category => setDraft(current => ({ ...current, category }))} manage={() => setManageCategories(!manageCategories)} expanded={manageCategories} managerId={managerId} /></div>
     {manageCategories && <CategoryManager id={managerId} onCreated={category => setDraft(current => ({ ...current, category }))} />}
     <label>对我有多重要<select value={draft.importance} onChange={e => setDraft({ ...draft, importance: Number(e.target.value) as Importance })}>{Object.entries(importanceLabels).map(([k, v]) => <option key={k} value={k}>{v}</option>)}</select></label>
     <RichTextEditor label="发生了什么" value={draft.story} format={draft.storyFormat} change={(story, storyFormat) => setDraft(current => ({ ...current, story, storyFormat }))} placeholder="记录事情本身，几句话就好。" />
@@ -240,6 +243,7 @@ function GoalForm({ item, fresh, journal, save, sample = false }: { item: Goal; 
     event.preventDefault()
     setError('')
     if (!draft.title.trim()) { setError('请填写目标名称。'); return }
+    if (!isCalendarDay(draft.date) || draft.date > '2100-12-31') { setError('请选择不晚于 2100 年的有效目标日期。'); return }
     if ((fresh || changedDate) && draft.date < localDay()) { setError('目标日期不能早于今天。'); return }
     if (draft.allocatedCents > available) { setError(`扣除其他目标后，最多可分配 ¥${exactYuan(Math.max(0, available))}。`); return }
     if (draft.allocatedCents > draft.budgetCents) { setError('当前分配不能超过目标预算。'); return }
@@ -247,7 +251,7 @@ function GoalForm({ item, fresh, journal, save, sample = false }: { item: Goal; 
     setPending(true); const ok = await save({ ...draft, title: draft.title.trim() }); setPending(false)
     if (!ok) setError('保存未完成，请重试。')
   }
-  return <form className="editor" onSubmit={submit}><label>我想完成的事<input required maxLength={120} value={draft.title} onChange={e => setDraft({ ...draft, title: e.target.value })} /></label><div className="form-grid"><label>希望完成的日期<input required type="date" min={fresh || changedDate ? today : undefined} max="2100-12-31" value={draft.date} onChange={e => { setDraft({ ...draft, date: e.target.value }); setPreview(false) }} /></label><CategoryField value={draft.category} change={category => setDraft(current => ({ ...current, category }))} manage={() => setManageCategories(!manageCategories)} expanded={manageCategories} managerId={managerId} /></div>
+  return <form className="editor" onSubmit={submit}><label>我想完成的事<input required maxLength={120} value={draft.title} onChange={e => setDraft({ ...draft, title: e.target.value })} /></label><div className="form-grid"><CalendarField label="希望完成的日期" min={fresh || changedDate ? today : undefined} max="2100-12-31" value={draft.date} change={date => { setDraft({ ...draft, date }); setPreview(false) }} /><CategoryField value={draft.category} change={category => setDraft(current => ({ ...current, category }))} manage={() => setManageCategories(!manageCategories)} expanded={manageCategories} managerId={managerId} /></div>
     {manageCategories && <CategoryManager id={managerId} onCreated={category => setDraft(current => ({ ...current, category }))} />}
     <label>为什么想做这件事<textarea rows={3} value={draft.description} onChange={e => setDraft({ ...draft, description: e.target.value })} /></label>
     <div className="form-grid"><label>预计需要 / 元<input type="number" min="0" max="100000000" step=".01" value={draft.budgetCents / 100} onChange={e => setDraft({ ...draft, budgetCents: cents(e.target.value) })} required /></label><label>已为它分配 / 元<input type="number" min="0" step=".01" value={draft.allocatedCents / 100} onChange={e => setDraft({ ...draft, allocatedCents: cents(e.target.value) })} required /></label></div>
