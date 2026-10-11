@@ -6,6 +6,7 @@ import { previousMonth } from './monthly'
 export function assetSample(today: string): Journal {
   const sample = seedJournal(), date = `${previousMonth(today)}-01`
   return { ...sample,
+    goals: sample.goals.map(g => g.id === 'g3' ? { ...g, date: `${Number(today.slice(0, 4)) + 1}-06-30`, budgetCents: 80000, monthlyBudgetCents: 30000, monthlyStartMonth: today.slice(0, 7), status: 'ongoing' } : g),
     accounts: [{ id: 'sample-pay', name: '支付宝', kind: 'payment' }, { id: 'sample-wechat', name: '微信', kind: 'payment' }, { id: 'sample-bank', name: '招商银行', kind: 'bank' }],
     funds: [...sample.funds.map(f => ({ ...f, assetType: 'deposit' as const, accountId: 'sample-bank' })),
       { id: 'sample-cash', name: '随手留下的余额', accountId: 'sample-pay', assetType: 'cash', returnMode: 'fixed', principalCents: 120000, startDate: date, rate: 0, liquid: true, maturityDate: '', mode: 'simple' },

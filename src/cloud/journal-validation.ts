@@ -2,6 +2,7 @@ import type { Journal } from '../model'
 import { isCategoryDefinitions } from '../categories.ts'
 import { isMonthlySummaries } from '../monthly.ts'
 import { isAssetAccounts, validFundDetails } from '../assets.ts'
+import { validGoalDetails } from '../goals.ts'
 
 const legacyCategories = ['life', 'growth', 'travel', 'health']
 const themes = new Set(['paper', 'forest', 'dusk'])
@@ -39,8 +40,7 @@ export function isJournal(value: unknown): value is Journal {
     && [1, 2, 3].includes(row.importance as number) && text(row.story) && text(row.reflection)
     && textFormat(row.storyFormat) && textFormat(row.reflectionFormat))
     && records(value.goals, row => text(row.title) && date(row.date) && text(row.category) && categories.has(row.category)
-      && money(row.budgetCents) && money(row.allocatedCents) && row.allocatedCents <= row.budgetCents
-      && boundedNumber(row.progress, 100) && text(row.description)
+      && validGoalDetails(row) && text(row.description)
       && (row.newSavingRate === undefined || boundedNumber(row.newSavingRate, 30)))
     && records(value.funds, row => text(row.name) && money(row.principalCents) && boundedNumber(row.rate, 30)
       && date(row.startDate) && typeof row.liquid === 'boolean' && text(row.mode) && modes.has(row.mode)

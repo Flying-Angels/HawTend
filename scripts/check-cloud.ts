@@ -17,7 +17,7 @@ assert.equal(isJournal(mutate(j => { j.goals[0].budgetCents = 12.5 })), false, '
 assert.equal(isJournal(mutate(j => { j.funds[0].principalCents = Number.MAX_SAFE_INTEGER + 1 })), false, 'unsafe integers must be rejected')
 assert.equal(isJournal(mutate(j => { j.moments.push({ ...j.moments[0] }) })), false, 'duplicate records must be rejected')
 assert.equal(isJournal(mutate(j => { j.funds[1].maturityDate = '2025-10-05' })), false, 'locked funds must mature after their start')
-assert.equal(isJournal(mutate(j => { j.goals[0].allocatedCents = j.goals[0].budgetCents + 1 })), false, 'a goal cannot allocate more than its budget')
+assert.equal(isJournal(mutate(j => { j.goals[0].budgetCents = 0 })), true, 'retired allocations must not block editing or removing a wish budget')
 assert.throws(() => assertJournal(mutate(j => { j.moments[0].reflection = '感'.repeat(310_000) })), /大小限制/, 'UTF-8 size must be checked before upload')
 const legacy = seedJournal()
 delete legacy.categories

@@ -26,10 +26,14 @@ export interface Goal {
   date: string
   category: Category
   budgetCents: number
+  // Historical fields are retained for export/undo, but no longer drive wish planning.
   allocatedCents: number
   progress: number
   description: string
   newSavingRate?: number
+  status?: 'wish' | 'ongoing' | 'done'
+  monthlyBudgetCents?: number
+  monthlyStartMonth?: string
 }
 export interface MonthlySummary { month: string; incomeCents: number; expenseCents: number; note: string }
 export interface AssetAccount { id: string; name: string; kind: 'payment' | 'bank' | 'cash' | 'other' }

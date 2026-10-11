@@ -5,7 +5,9 @@ import { emptyJournal, importanceLabels } from './model'
 import type { Category, CategoryDefinition, AssetAccount, Fund, Goal, Importance, Journal, Moment, MonthlySummary } from './model'
 import { CategoryField, CategoryManager, CategoryProvider, useCategories, useCategory } from './CategoryManager'
 import { categoryAppearance, isCategoryDefinitions, journalCategories, withCategories } from './categories'
-import { cents, exactYuan, futureValue, monthlySaving, monthsUntil, yuan } from './finance'
+import { futureValue, yuan } from './finance'
+import { GoalForm } from './GoalForm'
+import { goalBudgetLabel, goalStatus, goalStatuses } from './goals'
 import { readJournal, writeJournal } from './storage'
 import { MAX_TIMELINE_MONTH, MIN_TIMELINE_MONTH, centeredTimelineRange, lastTimelineMonth, monthAt, monthIndex, monthsForZoom, timelineBounds, timelineMarks, timelinePeriodLabel, timelineRange, timelineSpanLabel, zoomForMonths } from './timeline-range'
 import type { TimelineRange } from './timeline-range'
@@ -22,7 +24,7 @@ import { FundsPage } from './FundsPage'
 import { assetSample } from './asset-demo'
 import { DesktopContinuity, desktopTheme, isDesktop } from './DesktopContinuity'
 import { FundEditor, ValuationEditor } from './FundEditor'
-import { availableForPlanning, isAssetAccounts, manualValue, planningRate } from './assets'
+import { isAssetAccounts, manualValue } from './assets'
 
 const dateLabel = (date: string) => date.replaceAll('-', '.')
 const navItems = [{ id: 'home', label: '我的手账', short: '手账', icon: 'home' }, { id: 'timeline', label: '人生时间轴', short: '时间轴', icon: 'timeline' }, { id: 'goals', label: '心愿与目标', short: '心愿', icon: 'flag' }, { id: 'funds', label: '资金安排', short: '资金', icon: 'wallet' }] as const
@@ -41,7 +43,7 @@ function Modal({ title, subtitle, children, close }: { title: string; subtitle?:
   useEffect(() => {
     const previous = document.activeElement as HTMLElement | null
     const container = ref.current!
-    const focusable = () => [...container.querySelectorAll<HTMLElement>('button, input, select, textarea, a[href]')].filter(el => el.tabIndex >= 0 && !el.matches(':disabled') && el.getClientRects().length > 0)
+    const focusable = () => [...container.querySelectorAll<HTMLElement>('button, input, select, textarea, a[href], summary')].filter(el => el.tabIndex >= 0 && !el.matches(':disabled') && el.getClientRects().length > 0)
     focusable()[0]?.focus()
     const key = (e: KeyboardEvent) => {
       if (e.key === 'Escape') close()
@@ -156,7 +158,7 @@ function Timeline({ journal, compact = false, open }: { journal: Journal; compac
           if (group.length > 1) return <button key={`cluster-${item.id}`} data-date={item.date} className={`timeline-node cluster lane-${lane}`} style={{ ...nodeStyle, '--category': '#777e68', '--category-light': '#e9ebdf' } as CSSProperties} onClick={() => open({ type: 'cluster', items: group })}><span className="node-stem" /><span className="node-dot" /><span className="node-card"><span className="node-meta">{dateLabel(item.date)}<span>聚合节点</span></span><strong>这段日子的 {group.length} 个节点</strong><span className="node-category"><Icon name="book" size={13} />点击展开 · 保留各自日期</span></span></button>
           return <button key={item.id} data-date={item.date} className={`timeline-node lane-${lane} ${kind} importance-${kind === 'moment' ? (item as Moment).importance : 2}`} style={{ ...nodeStyle, '--category': c.color, '--category-light': c.light } as CSSProperties} onClick={() => open(kind === 'moment' ? { type: 'moment', item: item as Moment } : { type: 'goal', item: item as Goal })}>
             <span className="node-stem" /><span className="node-dot">{kind === 'goal' ? <Icon name="flag" size={11} /> : (item as Moment).importance === 3 ? <Icon name="star" size={11} /> : null}</span>
-            <span className="node-card"><span className="node-meta">{dateLabel(item.date)}<span>{kind === 'goal' ? '计划' : importanceLabels[(item as Moment).importance]}</span></span><strong>{item.title}</strong><span className="node-category"><Icon name={c.icon} size={13} /><span className="node-category-name" title={c.label}>{c.label}</span>{kind === 'goal' && (item as Goal).budgetCents > 0 && <span className="node-amount">¥{yuan((item as Goal).budgetCents)}</span>}</span></span>
+            <span className="node-card"><span className="node-meta">{dateLabel(item.date)}<span>{kind === 'goal' ? goalStatuses[goalStatus(item as Goal)] : importanceLabels[(item as Moment).importance]}</span></span><strong>{item.title}</strong><span className="node-category"><Icon name={c.icon} size={13} /><span className="node-category-name" title={c.label}>{c.label}</span>{kind === 'goal' && ((item as Goal).budgetCents > 0 || ((item as Goal).monthlyBudgetCents ?? 0) > 0) && <span className="node-amount">{(item as Goal).monthlyBudgetCents ? `¥${yuan((item as Goal).monthlyBudgetCents!)}/月` : `¥${yuan((item as Goal).budgetCents)}`}</span>}</span></span>
           </button>
         })}
       </div>
@@ -183,7 +185,7 @@ function FinanceCurve({ funds }: { funds: Fund[] }) {
 function GoalCard({ goal, open }: { goal: Goal; open: (panel: Panel) => void }) {
   const c = useCategory(goal.category)
   return <button className="goal-card" onClick={() => open({ type: 'goal', item: goal })} style={{ '--category': c.color, '--category-light': c.light } as CSSProperties}>
-    <span className="goal-icon"><Icon name={c.icon} size={24} /></span><span className="goal-copy"><span className="goal-card-top"><strong>{goal.title}</strong><span>{goal.progress}%</span></span><span className="goal-date">{goal.date.slice(0, 4)} 年 {Number(goal.date.slice(5, 7))} 月 · {goal.budgetCents ? `预算 ¥${yuan(goal.budgetCents)}` : '让习惯慢慢发生'}</span><span className="progress-track"><i style={{ width: `${goal.progress}%` }} /></span></span><Icon name="chevron" size={16} />
+    <span className="goal-icon"><Icon name={c.icon} size={24} /></span><span className="goal-copy"><span className="goal-card-top"><strong>{goal.title}</strong><span className={`wish-state state-${goalStatus(goal)}`}>{goalStatuses[goalStatus(goal)]}</span></span><span className="goal-date">{goal.date.slice(0, 4)} 年 {Number(goal.date.slice(5, 7))} 月 · {goalBudgetLabel(goal)}</span></span><Icon name="chevron" size={16} />
   </button>
 }
 
@@ -218,47 +220,6 @@ function MomentForm({ item, fresh, save, sample = false }: { item: Moment; fresh
     <div className="reflection-field"><RichTextEditor label="留给自己的话" note="感想 · 可稍后补写" value={draft.reflection} format={draft.reflectionFormat} change={(reflection, reflectionFormat) => setDraft(current => ({ ...current, reflection, reflectionFormat }))} placeholder="当时的心情、后来想通的事，都可以留在这里。" /></div>
     {preview && <div className="notice">日期将从 {dateLabel(item.date)} 改为 {dateLabel(draft.date)}，节点位置随之更新。感想与资金安排不会改变；保存后可撤销。</div>}
     {error && <p role="alert" className="form-error">{error}</p>}<div className="editor-footer"><span>{sample ? '样例体验 · 不写入个人手账' : '仅保存到本机'}</span><button className="primary-button" disabled={pending || busy} type="submit"><Icon name="check" size={17} />{pending ? '正在保存…' : changedDate && !preview ? '预览日期调整' : preview ? '确认调整并保存' : '收进手账'}</button></div>
-  </form>
-}
-
-function GoalForm({ item, fresh, journal, save, sample = false }: { item: Goal; fresh?: boolean; journal: Journal; save: (item: Goal) => Promise<boolean>; sample?: boolean }) {
-  const today = useToday()
-  const [draft, setDraft] = useState(item)
-  const [expense, setExpense] = useState(() => String((journal.monthlySummaries?.find(s => s.month === previousMonth(today))?.expenseCents ?? (sample ? 800000 : 0)) / 100))
-  const [obligation, setObligation] = useState(sample ? '2000' : '0')
-  const [error, setError] = useState('')
-  const [pending, setPending] = useState(false)
-  const [preview, setPreview] = useState(false)
-  const [manageCategories, setManageCategories] = useState(false)
-  const managerId = useId()
-  const { busy } = useCategories()
-  const liquidFunds = journal.funds.filter(f => availableForPlanning(f, today))
-  const liquidAmount = liquidFunds.reduce((sum, f) => sum + f.principalCents, 0)
-  const available = Math.max(0, liquidAmount - journal.goals.filter(g => g.id !== draft.id).reduce((sum, g) => sum + g.allocatedCents, 0))
-  const weightedRate = liquidAmount ? liquidFunds.reduce((sum, f) => sum + f.principalCents * planningRate(f), 0) / liquidAmount : 0
-  const months = monthsUntil(today, draft.date)
-  const forecast = monthlySaving(draft.budgetCents, draft.allocatedCents, draft.newSavingRate ?? 0, months, weightedRate)
-  const changedDate = !fresh && draft.date !== item.date
-  const submit = async (event: FormEvent) => {
-    event.preventDefault()
-    setError('')
-    if (!draft.title.trim()) { setError('请填写目标名称。'); return }
-    if (!isCalendarDay(draft.date) || draft.date > '2100-12-31') { setError('请选择不晚于 2100 年的有效目标日期。'); return }
-    if ((fresh || changedDate) && draft.date < localDay()) { setError('目标日期不能早于今天。'); return }
-    if (draft.allocatedCents > available) { setError(`扣除其他目标后，最多可分配 ¥${exactYuan(Math.max(0, available))}。`); return }
-    if (draft.allocatedCents > draft.budgetCents) { setError('当前分配不能超过目标预算。'); return }
-    if (changedDate && !preview) { setPreview(true); return }
-    setPending(true); const ok = await save({ ...draft, title: draft.title.trim() }); setPending(false)
-    if (!ok) setError('保存未完成，请重试。')
-  }
-  return <form className="editor" onSubmit={submit}><label>我想完成的事<input required maxLength={120} value={draft.title} onChange={e => setDraft({ ...draft, title: e.target.value })} /></label><div className="form-grid"><CalendarField label="希望完成的日期" min={fresh || changedDate ? today : undefined} max="2100-12-31" value={draft.date} change={date => { setDraft({ ...draft, date }); setPreview(false) }} /><CategoryField value={draft.category} change={category => setDraft(current => ({ ...current, category }))} manage={() => setManageCategories(!manageCategories)} expanded={manageCategories} managerId={managerId} /></div>
-    {manageCategories && <CategoryManager id={managerId} onCreated={category => setDraft(current => ({ ...current, category }))} />}
-    <label>为什么想做这件事<textarea rows={3} value={draft.description} onChange={e => setDraft({ ...draft, description: e.target.value })} /></label>
-    <div className="form-grid"><label>预计需要 / 元<input type="number" min="0" max="100000000" step=".01" value={draft.budgetCents / 100} onChange={e => setDraft({ ...draft, budgetCents: cents(e.target.value) })} required /></label><label>已为它分配 / 元<input type="number" min="0" step=".01" value={draft.allocatedCents / 100} onChange={e => setDraft({ ...draft, allocatedCents: cents(e.target.value) })} required /></label></div>
-    <p className="fine-print">预算为手动估计。分配来自可规划资金池，包含你设为可赎回的资产；它们不一定即时到账。手动市值的未来收益假设为 0%，锁定资金在到期前不能分配。</p>
-    {draft.budgetCents > 0 && <div className="forecast-box"><span className="eyebrow">为这个心愿，每月留一点</span><div className="forecast-number">{forecast.monthly === null ? '目标已临近' : <><small>¥</small>{exactYuan(forecast.monthly)}<span>/ 月</span></>}</div><p>{months} 次月末储蓄 · 已分配资金加权年化 {weightedRate.toFixed(2)}%<br />当前分配预计增长到 ¥{exactYuan(forecast.futureAllocated)}，剩余缺口 ¥{exactYuan(forecast.gap)}。</p><div className="form-grid"><label>每月生活开支 / 元<input aria-label="每月生活开支" type="number" min="0" step=".01" value={expense} onChange={e => setExpense(e.target.value)} /></label><label>每月固定义务 / 元<input aria-label="每月固定义务" type="number" min="0" step=".01" value={obligation} onChange={e => setObligation(e.target.value)} /></label></div><label>新增储蓄年化假设 / %<input aria-label="新增储蓄年化假设" type="number" min="0" max="30" step=".01" required value={draft.newSavingRate ?? 0} onChange={e => setDraft({ ...draft, newSavingRate: Number(e.target.value) })} /></label><div className="income-line"><span>所需月可支配收入</span><strong>{forecast.monthly === null ? '先调整日期' : `¥${exactYuan(forecast.monthly + cents(expense) + cents(obligation))}`}</strong></div><p className="fine-print">本目标测算，不含其他目标的月储蓄。收入指税后可支配收入；生活开支默认参考上月实际支出，可临时调整；义务请仅填未包含在生活开支中的金额，试算不会修改账单。新增储蓄默认 0% 收益；只有明确计划投入时再修改年化假设。</p></div>}
-    <label>自己记录的进度 · {draft.progress}%<input aria-label="目标进度" className="progress-input" type="range" min="0" max="100" value={draft.progress} onChange={e => setDraft({ ...draft, progress: Number(e.target.value) })} /></label>
-    {preview && <div className="notice">目标日期从 {dateLabel(item.date)} 调整到 {dateLabel(draft.date)}。上述月储蓄已按新日期重算；保存后可撤销。</div>}{error && <p role="alert" className="form-error">{error}</p>}<div className="editor-footer"><span>试算参考日：{dateLabel(today)}</span><button className="primary-button" disabled={pending || busy} type="submit">{pending ? '正在保存…' : changedDate && !preview ? '预览日期调整' : preview ? '确认调整并保存' : '保存这个心愿'}</button></div>
   </form>
 }
 
@@ -359,7 +320,7 @@ export default function App() {
         <div className="home-bottom"><section className="goals-preview"><div className="section-heading"><div><span className="eyebrow">A LITTLE CLOSER</span><h2>想做的事，慢慢实现</h2></div><button className="text-button" onClick={() => navigate('goals')}>全部心愿<Icon name="arrow" size={16} /></button></div>{journal.goals.slice(0, 3).map(g => <GoalCard key={g.id} goal={g} open={setPanel} />)}{!journal.goals.length && <div className="empty-state">未来还空着，给它留一个心愿吧。<button className="text-button" onClick={newGoal}>添加心愿</button></div>}</section><section className="journal-preview"><div className="section-heading"><div><span className="eyebrow">A NOTE TO MYSELF</span><h2>留给自己的话</h2></div><Icon name="edit" size={19} /></div>{latest ? <button className="reflection-card" onClick={() => setPanel({ type: 'moment', item: latest })}><div><CategoryTag category={latest.category} /><span>{dateLabel(latest.date)}</span></div><span className="quote-mark">“</span><div className="reflection-excerpt"><RichText value={latest.reflection || '这一天的心情，可以慢慢写下来。'} format={latest.reflectionFormat} summary /></div><strong>{latest.title}<Icon name="arrow" size={15} /></strong></button> : <div className="empty-state">给今天的自己写几句话。<button className="text-button" onClick={newMoment}>记录一天</button></div>}</section></div>
       </>}
       {page === 'timeline' && <><div className="page-heading"><span className="eyebrow">PAST, PRESENT & POSSIBILITY</span><h1>日子连起来，就是人生。</h1><p>已发生的大事与未来的心愿，在这里相遇。</p></div><Timeline journal={journal} open={setPanel} /><div className="timeline-bottom-note"><Icon name="book" size={25} /><div><strong>事情有大小，感受没有。</strong><p>分类颜色帮你找到同类的日子；重要程度用星标、大小与文字一起区分。</p></div><button className="quiet-button" onClick={newMoment} disabled={disabled}><Icon name="plus" size={17} />记录一个日子</button></div></>}
-      {page === 'goals' && <><div className="page-heading with-action"><div><span className="eyebrow">MAKE ROOM FOR WHAT MATTERS</span><h1>心愿有了位置，<br className="mobile-only" />未来就有了方向。</h1><p>给想做的事一点时间，也一点认真。</p></div><button className="primary-button" onClick={newGoal} disabled={disabled}><Icon name="plus" size={17} />添加心愿</button></div><div className="goal-grid">{journal.goals.map(g => <div key={g.id} className="goal-tile"><CategoryTag category={g.category} /><GoalCard goal={g} open={setPanel} /><p>{g.description}</p><button className="text-button" onClick={() => setPanel({ type: 'goal', item: g })}>看看如何靠近它<Icon name="arrow" size={16} /></button></div>)}</div>{!journal.goals.length && <section className="blank-card"><Icon name="flag" size={32} /><h2>把第一份期待，写在这里。</h2><p>不必一次想好整个人生，先给一件想做的事留个位置。</p><button className="quiet-button" disabled={disabled} onClick={newGoal}>添加第一个心愿<Icon name="plus" size={16} /></button></section>}<div className="gentle-banner"><Icon name="sprout" size={28} /><p>计划可以调整。<br /><span>改变日期前，先看一眼新的储蓄节奏，再决定怎么走。</span></p></div></>}
+      {page === 'goals' && <><div className="page-heading with-action"><div><span className="eyebrow">MAKE ROOM FOR WHAT MATTERS</span><h1>心愿有了位置，<br className="mobile-only" />未来就有了方向。</h1><p>给想做的事一点时间，也一点认真。</p></div><button className="primary-button" onClick={newGoal} disabled={disabled}><Icon name="plus" size={17} />添加心愿</button></div><div className="goal-grid">{journal.goals.map(g => <div key={g.id} className="goal-tile"><CategoryTag category={g.category} /><GoalCard goal={g} open={setPanel} /><p>{g.description}</p><button className="text-button" onClick={() => setPanel({ type: 'goal', item: g })}>看看如何靠近它<Icon name="arrow" size={16} /></button></div>)}</div>{!journal.goals.length && <section className="blank-card"><Icon name="flag" size={32} /><h2>把第一份期待，写在这里。</h2><p>不必一次想好整个人生，先给一件想做的事留个位置。</p><button className="quiet-button" disabled={disabled} onClick={newGoal}>添加第一个心愿<Icon name="plus" size={16} /></button></section>}<div className="gentle-banner"><Icon name="sprout" size={28} /><p>计划可以调整。<br /><span>一次性费用、每月投入，都可以随着生活调整。</span></p></div></>}
       {page === 'funds' && <><div className="page-heading with-action"><div><span className="eyebrow">A LITTLE PEACE OF MIND</span><h1>为想要的生活，<br className="mobile-only" />留一份底气。</h1><p>回看每月的花费，也安排慢慢长大的积蓄。</p></div>{fundsView === "funds" && <button className="primary-button" onClick={newFund} disabled={disabled}><Icon name="plus" size={17} />添加资金</button>}</div><div className="funds-tabs" role="group" aria-label="收支与资金视图"><button aria-pressed={fundsView === "monthly"} onClick={() => setFundsView("monthly")}><Icon name="book" size={17} />每月收支</button><button aria-pressed={fundsView === "funds"} onClick={() => setFundsView("funds")}><Icon name="wallet" size={17} />资金安排</button></div>{fundsView === "monthly" ? <MonthlyLedger summaries={journal.monthlySummaries ?? []} save={saveMonthly} remove={removeMonthly} busy={disabled} sample={sampleMode} uninvested={newCashFund} /> : <FundsPage journal={journal} edit={item => setPanel({ type: "fund", item })} update={item => setPanel({ type: "valuation", item })} saveAccounts={saveAccounts} busy={disabled} forecast={funds => <FinanceCurve funds={funds} />} />}</>}
       <footer className="page-footer"><span>HawTend · 好好生活，慢慢记录</span><button onClick={() => setPanel({ type: 'settings' })} className="text-button">本地原型 · 云同步未连接<Icon name="cloud" size={15} /></button></footer>
       </div></main>
@@ -368,7 +329,7 @@ export default function App() {
       {panel.type === 'cluster' && <div className="cluster-list">{panel.items.map(({ kind, item }) => <button key={item.id} onClick={() => setPanel(kind === 'moment' ? { type: 'moment', item: item as Moment } : { type: 'goal', item: item as Goal })}><CategoryTag category={item.category} /><span><strong>{item.title}</strong><small>{dateLabel(item.date)} · {kind === 'moment' ? importanceLabels[(item as Moment).importance] : '未来计划'}</small></span><Icon name="chevron" size={17} /></button>)}</div>}
       {sampleMode && panel.type !== 'settings' && <p className="notice">样例体验：这里的修改仅在本次浏览中保留，不会写入个人手账。</p>}
       {panel.type === 'moment' && <MomentForm key={panel.item.id} item={panel.item} fresh={panel.fresh} save={saveMoment} sample={sampleMode} />}
-      {panel.type === 'goal' && <GoalForm key={panel.item.id} item={panel.item} fresh={panel.fresh} journal={journal} save={saveGoal} sample={sampleMode} />}
+      {panel.type === 'goal' && <GoalForm key={panel.item.id} item={panel.item} fresh={panel.fresh} save={saveGoal} sample={sampleMode} />}
       {panel.type === 'fund' && <FundEditor key={panel.item.id} item={panel.item} fresh={panel.fresh} journal={journal} save={saveFund} saveAccounts={saveAccounts} update={() => setPanel({ type: "valuation", item: panel.item })} busy={disabled} />}
       {panel.type === 'valuation' && <ValuationEditor key={panel.item.id} item={panel.item} save={saveFund} busy={disabled} />}
       {panel.type === 'new' && <div className="new-options"><button onClick={newMoment}><span className="option-icon"><Icon name="book" size={26} /></span><span><strong>值得记住的日子</strong><small>记录事情，也记录当时的心情</small></span><Icon name="arrow" size={19} /></button><button onClick={newGoal}><span className="option-icon blue"><Icon name="flag" size={26} /></span><span><strong>对未来的一个期待</strong><small>放上时间轴，慢慢计划与实现</small></span><Icon name="arrow" size={19} /></button></div>}

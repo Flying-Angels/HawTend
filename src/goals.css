@@ -1,0 +1,56 @@
+.wish-editor fieldset { min-width: 0; border: 0; margin: 0 0 22px; padding: 0; }
+.wish-editor legend { padding: 0; margin-bottom: 11px; font-size: 12px; color: var(--muted); }
+.wish-editor legend small { font-size: 10px; margin-left: 7px; }
+.wish-status > div { display: flex; gap: 8px; }
+.wish-status label { position: relative; flex: 1; cursor: pointer; }
+.wish-editor .wish-status input { position: absolute; opacity: 0; width: 1px; min-height: 0; height: 1px; padding: 0; }
+.wish-status label span { display: flex; justify-content: center; align-items: center; min-height: 44px; border-radius: 7px; border: 1px solid var(--line); font-size: 12px; color: var(--muted); transition: background .15s; }
+.wish-status input:checked + span { background: var(--hero); border-color: var(--accent); color: var(--accent); }
+.wish-status input:focus-visible + span { outline: 2px solid var(--accent); outline-offset: 3px; }
+.wish-editor .wish-budget { border-top: 1px solid var(--line); padding-top: 18px; margin-top: 27px; }
+.wish-budget legend { padding-right: 10px; color: var(--ink); font-family: var(--serif); font-size: 16px; }
+.wish-budget-intro { font-size: 11px; line-height: 1.85; color: var(--muted); margin: 0 0 13px; }
+.wish-cost-options { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }
+.wish-cost-options > label { display: flex; align-items: center; gap: 11px; padding: 13px; min-height: 68px; border: 1px solid var(--line); border-radius: 8px; cursor: pointer; background: var(--surface); }
+.wish-cost-options > label:has(input:checked) { border-color: var(--accent); background: var(--hero); }
+.wish-editor .wish-cost-options input { width: 17px; height: 17px; min-height: 17px; padding: 0; flex-shrink: 0; accent-color: var(--accent); }
+.wish-cost-options strong { display: block; font-size: 12px; font-weight: 500; color: var(--ink); }
+.wish-cost-options small { display: block; margin-top: 5px; font-size: 10px; color: var(--muted); line-height: 1.5; }
+.wish-amounts { margin-top: 18px; }
+.wish-editor .wish-amounts > label { margin-bottom: 15px; }
+.wish-period { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); align-items: center; gap: 16px; }
+.wish-period > p { color: var(--muted); font-size: 11px; line-height: 1.9; margin-top: 11px; }
+.wish-cost-summary { padding: 17px 19px; border-radius: 8px; background: var(--hero); margin-top: 17px; }
+.wish-cost-summary > span { font-size: 11px; color: var(--muted); }
+.wish-cost-summary strong { display: block; font: 26px/1.5 var(--number); color: var(--accent); margin: 3px 0 5px; overflow-wrap: anywhere; }
+.wish-cost-summary p { color: var(--ink); font-size: 12px; line-height: 1.8; overflow-wrap: anywhere; }
+.wish-cost-summary small, .wish-no-budget { color: var(--muted); font-size: 10px; line-height: 1.8; }
+.wish-no-budget { margin-top: 14px; }
+.wish-saving { border: 1px solid var(--line); border-radius: 8px; margin-top: 8px; }
+.wish-saving > summary { display: flex; gap: 9px; align-items: center; cursor: pointer; padding: 14px 16px; min-height: 48px; font-size: 12px; color: var(--accent); list-style: none; }
+.wish-saving > summary::-webkit-details-marker { display: none; }
+.wish-saving summary small { margin-left: auto; font-size: 10px; color: var(--muted); }
+.wish-saving[open] summary > svg:last-child { transform: rotate(90deg); }
+.wish-saving-content { padding: 0 18px 17px; border-top: 1px solid var(--line); }
+.wish-saving-content > p { color: var(--muted); font-size: 11px; line-height: 1.9; margin-top: 13px; }
+.wish-saving-content > label { display: flex; flex-direction: column; gap: 8px; font-size: 11px; color: var(--muted); margin-top: 15px; }
+.wish-saving .forecast-number { font-size: 26px; }
+.goal-card-top .wish-state { font-family: inherit; font-size: 10px; white-space: nowrap; background: var(--category-light); color: var(--category); padding: 3px 7px; border-radius: 4px; }
+.goal-card-top .state-wish { background: transparent; color: var(--muted); }
+.goal-card .goal-date { line-height: 1.9; overflow-wrap: anywhere; }
+@media (max-width: 760px) {
+  .wish-editor legend, .wish-status label span { font-size: 13px; }
+  .wish-budget legend { font-size: 17px; }
+  .wish-budget-intro, .wish-period > p, .wish-saving-content > p { font-size: 12px; }
+  .wish-cost-options { gap: 8px; }
+  .wish-cost-options > label { padding: 12px 9px; gap: 8px; }
+  .wish-cost-options strong { font-size: 12px; }
+  .wish-period { grid-template-columns: minmax(0, 1fr); gap: 0; }
+  .wish-period > p { margin-top: 6px; }
+  .wish-saving > summary { padding: 15px 12px; }
+  .wish-saving-content { padding: 0 13px 16px; }
+  .wish-saving .forecast-number { font-size: 23px; }
+}
+@media (max-width: 480px) {
+  .wish-editor > .form-grid:has(.category-field) { grid-template-columns: minmax(0, 1fr); }
+}
