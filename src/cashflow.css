@@ -1,0 +1,59 @@
+.financial-planning { border-top: 1px solid var(--line); margin-top: 17px; padding-top: 20px; }
+.income-summary { display: grid; grid-template-columns: 1.2fr 1fr 1fr; gap: 20px; padding: 20px; background: var(--hero); border-radius: 9px; }
+.income-summary span { color: var(--muted); font-size: 11px; }
+.income-summary strong { display: block; font: 25px/1.7 var(--number); color: var(--accent); overflow-wrap: anywhere; }
+.income-summary strong small { font: 10px/1.7 'Microsoft YaHei', sans-serif; display: block; }
+.income-summary .income-horizon { font-size: 20px; }
+.income-summary p, .planning-hint { font-size: 10px; color: var(--muted); line-height: 1.9; }
+.planning-hint { margin: 10px 0 13px; }
+.planning-assumptions { border: 1px solid var(--line); border-radius: 8px; margin-top: 13px; }
+.planning-assumptions > summary { display: flex; align-items: center; gap: 8px; padding: 14px 16px; min-height: 48px; font-size: 12px; color: var(--accent); cursor: pointer; list-style: none; }
+.planning-assumptions summary::-webkit-details-marker { display: none; }
+.planning-assumptions summary small { margin-left: auto; color: var(--muted); font-size: 10px; }
+.planning-assumptions[open] summary > svg:last-child { transform: rotate(90deg); }
+.planning-fields { border-top: 1px solid var(--line); padding: 18px; }
+.planning-fields label { color: var(--muted); font-size: 12px; }
+.planning-fields input:not([type=checkbox]), .cashflow-detail select { width: 100%; border: 1px solid var(--line); border-radius: 6px; padding: 10px 12px; min-height: 45px; background: var(--surface); color: var(--ink); font-size: 13px; }
+.planning-fields > p { font-size: 11px; color: var(--muted); line-height: 1.9; margin: 0 0 13px; }
+.planning-check, .included-wishes label { display: flex; align-items: center; gap: 10px; min-height: 44px; line-height: 1.8; padding: 8px 0; }
+.planning-fields input[type=checkbox] { accent-color: var(--accent); width: 17px; height: 17px; flex-shrink: 0; }
+.included-wishes { border-top: 1px solid var(--line); border-bottom: 1px solid var(--line); margin: 12px 0; }
+.planning-income-mode, .cashflow-switch { display: flex; gap: 5px; width: fit-content; max-width: 100%; border-radius: 7px; padding: 4px; background: var(--hero); }
+.planning-income-mode button, .cashflow-switch button { min-height: 44px; padding: 9px 13px; border-radius: 5px; font-size: 12px; }
+.planning-income-mode .selected, .cashflow-switch [aria-pressed=true] { background: var(--surface); color: var(--accent); }
+.planning-custom-income { display: flex; flex-direction: column; gap: 8px; margin: 17px 0; }
+.planning-save { display: flex; justify-content: space-between; align-items: center; gap: 12px; margin-top: 16px; }
+.planning-save > span { font-size: 10px; color: var(--muted); }
+.cashflow-heading { display: flex; justify-content: space-between; align-items: center; gap: 15px; margin-top: 18px; flex-wrap: wrap; }
+.cashflow-legend { display: flex; gap: 15px; flex-wrap: wrap; }
+.cashflow-legend span { display: flex; align-items: center; gap: 6px; font-size: 10px; color: var(--muted); }
+.cashflow-legend i { width: 16px; border-top: 3px solid var(--accent); }
+.cashflow-legend .expense { border-color: #b47b50; }
+.cashflow-tracks { display: block; height: 220px; border-bottom: 1px solid var(--line); user-select: none; }
+.cashflow-scale { position: sticky; left: 0; z-index: 2; width: 76px; height: 182px; margin-bottom: -182px; pointer-events: none; user-select: none; background: linear-gradient(to right, var(--surface) 84%, transparent); }
+.cashflow-scale span { position: absolute; left: 3px; font-size: 10px; line-height: 14px; color: var(--muted); }
+.cashflow-scale .cashflow-unit { top: 0; }
+.cashflow-tracks text { font: 11px 'Microsoft YaHei', sans-serif; fill: var(--muted); }
+.cashflow-tracks path { fill: none; stroke-width: 2.5; stroke-linejoin: round; }
+.cashflow-tracks .cash-income, .cashflow-tracks .cash-balance { stroke: var(--accent); }
+.cashflow-tracks .cash-expense { stroke: #b47b50; }
+.cash-income-point { fill: var(--accent); }.cash-expense-point { fill: #b47b50; }
+.cashflow-detail { display: flex; gap: 20px; border-top: 1px solid var(--line); padding: 17px 0 3px; align-items: flex-start; }
+.cashflow-detail label { font-size: 11px; color: var(--muted); width: 155px; flex-shrink: 0; }
+.cashflow-detail select { margin-top: 8px; }
+.cashflow-detail > div > span { color: var(--accent); font-size: 12px; }
+.cashflow-detail p, .cashflow-detail li { font-size: 11px; line-height: 2; color: var(--muted); }
+.cashflow-detail strong { color: var(--ink); font-weight: 500; }
+.cashflow-detail .negative { color: #a24531; }
+.cashflow-detail ul { padding-left: 17px; margin-top: 5px; }
+@media (max-width: 760px) {
+  .income-summary { grid-template-columns: minmax(0, 1fr); gap: 15px; padding: 18px; }
+  .income-summary > div + div { padding-top: 12px; border-top: 1px solid var(--line); }
+  .income-summary p, .planning-hint, .cashflow-detail p, .cashflow-detail li { font-size: 12px; }
+  .planning-assumptions summary { padding: 14px 10px; gap: 5px; flex-wrap: wrap; }
+  .planning-assumptions summary small { font-size: 10px; }
+  .planning-fields { padding: 15px 12px; }.planning-fields .form-grid { grid-template-columns: 1fr; gap: 0; }
+  .planning-fields input:not([type=checkbox]), .cashflow-detail select { font-size: 16px; }
+  .planning-save { flex-wrap: wrap; }.planning-save button { min-height: 44px; }
+  .cashflow-detail { flex-direction: column; gap: 12px; }.cashflow-detail label { width: 100%; }
+}

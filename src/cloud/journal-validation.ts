@@ -3,6 +3,7 @@ import { isCategoryDefinitions } from '../categories.ts'
 import { isMonthlySummaries } from '../monthly.ts'
 import { isAssetAccounts, validFundDetails } from '../assets.ts'
 import { validGoalDetails } from '../goals.ts'
+import { isFinancialPlan } from '../cashflow.ts'
 
 const legacyCategories = ['life', 'growth', 'travel', 'health']
 const themes = new Set(['paper', 'forest', 'dusk'])
@@ -34,6 +35,7 @@ export function isJournal(value: unknown): value is Journal {
   if (value.categories !== undefined && !isCategoryDefinitions(value.categories)) return false
   if (value.monthlySummaries !== undefined && !isMonthlySummaries(value.monthlySummaries)) return false
   if (value.accounts !== undefined && !isAssetAccounts(value.accounts)) return false
+  if (value.financialPlan !== undefined && !isFinancialPlan(value.financialPlan)) return false
   const accountIds = new Set(value.accounts === undefined ? [] : value.accounts.map(a => a.id))
   const categories = new Set(value.categories === undefined ? legacyCategories : value.categories.map(c => c.id))
   return records(value.moments, row => text(row.title) && date(row.date) && text(row.category) && categories.has(row.category)

@@ -29,7 +29,7 @@ function ValueHistory({ funds }: { funds: Fund[] }) {
 }
 
 export function FundsPage({ journal, edit, update, saveAccounts, busy, forecast }: {
-  journal: Journal; edit: (fund: Fund) => void; update: (fund: Fund) => void; saveAccounts: (accounts: AssetAccount[]) => Promise<boolean>; busy: boolean; forecast: (funds: Fund[]) => ReactNode
+  journal: Journal; edit: (fund: Fund) => void; update: (fund: Fund) => void; saveAccounts: (accounts: AssetAccount[]) => Promise<boolean>; busy: boolean; forecast: ReactNode
 }) {
   const today = useToday(), accounts = journal.accounts ?? []
   const [filter, setFilter] = useState<string | null>(null), [manage, setManage] = useState(false)
@@ -55,7 +55,7 @@ export function FundsPage({ journal, edit, update, saveAccounts, busy, forecast 
     })}</div>
     {!visible.length && <div className="blank-card"><Icon name="wallet" size={29}/><h2>{funds.length ? '这个账户还没有资产。' : '给手里的钱，一个清楚的位置。'}</h2><p>点击“添加资金”，选择账户、类别与更新方式。</p></div>}
     <ValueHistory funds={manual} />
-    {visible.length > 0 && forecast(visible)}
-    <div className="notice financial-note"><Icon name="leaf" size={20}/><span>手动市值记录与固定年化预测分别呈现。资产之间转账、基金市值浮动，不会自动写入每月收支；账户汇总按名下资产相加。</span></div>
+    {forecast}
+    <div className="notice financial-note"><Icon name="leaf" size={20}/><span>资金规划汇总全部账户与心愿。试算不会改动余额或账单；转账、基金市值变化仍需按实际情况记录。</span></div>
   </section>
 }

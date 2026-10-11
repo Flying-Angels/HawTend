@@ -36,6 +36,14 @@ export interface Goal {
   monthlyStartMonth?: string
 }
 export interface MonthlySummary { month: string; incomeCents: number; expenseCents: number; note: string }
+export interface FinancialPlan {
+  monthlyExpenseCents: number
+  annualRate: number
+  // Undefined means dynamically use the required income, rather than an actual ledger value.
+  monthlyIncomeCents?: number
+  includeRedeemable?: boolean
+  includedMonthlyGoalIds?: string[]
+}
 export interface AssetAccount { id: string; name: string; kind: 'payment' | 'bank' | 'cash' | 'other' }
 export type AssetType = 'cash' | 'deposit' | 'fund' | 'other'
 export interface Valuation { date: string; valueCents: number; netFlowCents: number; cashIncomeCents: number; note: string }
@@ -64,6 +72,7 @@ export interface Journal {
   categories?: CategoryDefinition[]
   monthlySummaries?: MonthlySummary[]
   accounts?: AssetAccount[]
+  financialPlan?: FinancialPlan
 }
 export const categories: Record<Category, { label: string; color: string; light: string; icon: string }> = {
   life: { label: '生活', color: '#a86d48', light: '#f2e7dc', icon: 'sun' },
@@ -89,6 +98,7 @@ export function isUneditedSample(journal: Journal): boolean {
     && JSON.stringify(journal.categories ?? defaultCategories()) === JSON.stringify(sample.categories)
     && !journal.monthlySummaries?.length
     && !journal.accounts?.length
+    && !journal.financialPlan
 }
 
 export function seedJournal(): Journal {
