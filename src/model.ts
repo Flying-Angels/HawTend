@@ -37,9 +37,11 @@ export interface Goal {
 }
 export interface MonthlySummary { month: string; incomeCents: number; expenseCents: number; note: string }
 export interface FinancialPlan {
+  fundingSource?: 'salary-only' | 'assets-and-salary'
   monthlyExpenseCents: number
   annualRate: number
-  // Undefined means dynamically use the required income, rather than an actual ledger value.
+  // Legacy self-filled salary is retained for export. Salary-only planning solves
+  // its income from wish budgets and ignores this value.
   monthlyIncomeCents?: number
   includeRedeemable?: boolean
   includedMonthlyGoalIds?: string[]

@@ -12,6 +12,7 @@ export function isFinancialPlan(value: unknown): value is FinancialPlan {
   if (!value || typeof value !== 'object' || Array.isArray(value)) return false
   const row = value as Record<string, unknown>
   return money(row.monthlyExpenseCents) && typeof row.annualRate === 'number' && Number.isFinite(row.annualRate) && row.annualRate >= 0 && row.annualRate <= 30
+    && (row.fundingSource === undefined || row.fundingSource === 'salary-only' || row.fundingSource === 'assets-and-salary')
     && (row.monthlyIncomeCents === undefined || money(row.monthlyIncomeCents))
     && (row.includeRedeemable === undefined || typeof row.includeRedeemable === 'boolean')
     && (row.includedMonthlyGoalIds === undefined || Array.isArray(row.includedMonthlyGoalIds) && row.includedMonthlyGoalIds.length <= 2000 && row.includedMonthlyGoalIds.every(id => typeof id === 'string') && new Set(row.includedMonthlyGoalIds).size === row.includedMonthlyGoalIds.length)
@@ -22,8 +23,12 @@ export function isFinancialPlan(value: unknown): value is FinancialPlan {
 
 export function financialDefaults(journal: Journal, today: string): FinancialPlan {
   const recent = [...(journal.monthlySummaries ?? [])].filter(row => row.month < today.slice(0, 7)).sort((a, b) => b.month.localeCompare(a.month))[0]
-  return journal.financialPlan ?? { monthlyExpenseCents: recent?.expenseCents ?? 0, annualRate: .8, includeRedeemable: false }
+  const previous = journal.financialPlan ?? { monthlyExpenseCents: recent?.expenseCents ?? 0, annualRate: .8, includeRedeemable: false }
+  // The user explicitly wants wishes funded entirely by future wages.
+  // Existing assets and their returns remain recorded, but do not offset salary.
+  return { ...previous, fundingSource: 'salary-only', incomeBasis: previous.incomeBasis ?? 'gross' }
 }
+export const salaryOnly = (plan: FinancialPlan) => plan.fundingSource !== 'assets-and-salary'
 
 export function planningHorizon(journal: Journal, today: string): string {
   const dates = journal.goals.filter(g => goalStatus(g) !== 'done' && g.date >= today && (g.budgetCents > 0 || (g.monthlyBudgetCents ?? 0) > 0)).map(g => g.date)
@@ -52,8 +57,8 @@ function schedule(journal: Journal, plan: FinancialPlan, today: string, end: str
   const origin = monthIndex(today), finish = Math.max(origin, monthIndex(end))
   for (let index = origin; index <= finish; index++) {
     const month = monthAt(index), date = `${month}-01`
-    // Current balances already contain this month's completed income and expenses.
-    // Full monthly flows start next month; pending one-off wishes still use exact dates.
+    // Future wage planning starts with the next complete month's salary and costs.
+    // Pending current-month one-off wishes retain their exact payment dates.
     if (index > origin) {
       events.push({ date, kind: 'income', amount: 0 }, { date, kind: 'expense', amount: plan.monthlyExpenseCents })
       for (const wish of active) if ((wish.monthlyBudgetCents ?? 0) > 0 && wish.monthlyStartMonth && month >= wish.monthlyStartMonth && month <= wish.date.slice(0, 7) && !included.has(wish.id)) {
@@ -63,7 +68,7 @@ function schedule(journal: Journal, plan: FinancialPlan, today: string, end: str
     events.push({ date: lastDay(month) < end ? lastDay(month) : end, kind: 'close', amount: 0 })
   }
   let opening = 0, excluded = 0
-  for (const fund of journal.funds) {
+  for (const fund of salaryOnly(plan) ? [] : journal.funds) {
     if (manualValue(fund) && !plan.includeRedeemable) { excluded += fund.principalCents; continue }
     if (availableForPlanning(fund, today)) opening += fund.principalCents
     else if (fund.maturityDate > today && fund.maturityDate <= end) events.push({ date: fund.maturityDate, kind: 'maturity', amount: futureValue(fund, fund.maturityDate) })
@@ -72,6 +77,20 @@ function schedule(journal: Journal, plan: FinancialPlan, today: string, end: str
   const order = { maturity: 0, income: 1, expense: 2, close: 3 }
   events.sort((a, b) => a.date.localeCompare(b.date) || order[a.kind] - order[b.kind])
   return { opening, excluded, events: events.filter(e => e.date >= today && e.date <= end) }
+}
+
+export function salaryTargetSummary(journal: Journal, plan: FinancialPlan, today: string) {
+  const wagePlan: FinancialPlan = { ...plan, fundingSource: 'salary-only' }
+  const required = requiredIncome(journal, wagePlan, today)
+  const { events } = schedule(journal, wagePlan, today, required.horizon)
+  const wished = requiredIncome(journal, { ...wagePlan, monthlyExpenseCents: 0 }, today)
+  const rows = journal.goals.filter(g => goalStatus(g) !== 'done' && g.date >= today && (g.budgetCents > 0 || (g.monthlyBudgetCents ?? 0) > 0)).map(g => {
+    const expenses = events.filter(e => e.kind === 'expense' && e.wish?.id === g.id)
+    return { id: g.id, title: g.title, date: g.date, onceCents: expenses.filter(e => !e.monthly).reduce((sum, e) => sum + e.amount, 0), recurringCents: expenses.filter(e => e.monthly).reduce((sum, e) => sum + e.amount, 0), monthlyCents: g.monthlyBudgetCents ?? 0, months: expenses.filter(e => e.monthly).length, alreadyInLiving: (plan.includedMonthlyGoalIds ?? []).includes(g.id) }
+  })
+  const onceCents = rows.reduce((sum, g) => sum + g.onceCents, 0), recurringCents = rows.reduce((sum, g) => sum + g.recurringCents, 0)
+  const livingCents = events.filter(e => e.kind === 'expense' && !e.wish).reduce((sum, e) => sum + e.amount, 0)
+  return { required, rows, onceCents, recurringCents, livingCents, totalCents: onceCents + recurringCents + livingCents, salaryMonths: events.filter(e => e.kind === 'income').length, wishMonthlyCents: wished.incomeCents, bindingWishes: events.filter(e => e.kind === 'expense' && e.date === required.limitingDate && e.wish).map(e => e.wish!.title) }
 }
 
 const growth = (plan: FinancialPlan, before: string, after: string) => (1 + plan.annualRate / 100) ** ((dayTime(after) - dayTime(before)) / 86400000 / 365)
@@ -97,7 +116,7 @@ export function cashflowProjection(journal: Journal, plan: FinancialPlan, today:
   const required = requiredIncome(journal, plan, today)
   const end = until > required.horizon ? until : required.horizon
   const { events, opening } = schedule(journal, plan, today, end)
-  const monthlyIncome = plan.monthlyIncomeCents ?? required.incomeCents ?? 0
+  const monthlyIncome = salaryOnly(plan) ? required.incomeCents ?? 0 : plan.monthlyIncomeCents ?? required.incomeCents ?? 0
   const rows = new Map<string, MonthFlow>()
   let balance = opening, previous = today
   const get = (date: string) => {

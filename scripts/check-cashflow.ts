@@ -5,7 +5,7 @@ import { isJournal } from '../src/cloud/journal-validation.ts'
 import { isUneditedSample, seedJournal } from '../src/model.ts'
 
 const today = '2026-10-11'
-const plan: FinancialPlan = { monthlyExpenseCents: 10000, annualRate: 0 }
+const plan: FinancialPlan = { monthlyExpenseCents: 10000, annualRate: 0, fundingSource: 'assets-and-salary' }
 const wish = (edit: Partial<Goal>): Goal => ({ id: 'wish', title: '虚构心愿', date: '2027-01-31', category: 'life', budgetCents: 90000, allocatedCents: 0, progress: 0, description: '', ...edit })
 const journal = (goals: Goal[], capital = 0): Journal => ({ schemaVersion: 1, theme: 'paper', moments: [], goals, funds: capital ? [{ id: 'cash', name: '测试现金', principalCents: capital, rate: 0, liquid: true, startDate: today, maturityDate: '', mode: 'compound' }] : [] })
 assert.equal(requiredIncome(journal([wish({})]), plan, today).incomeCents, 40000, '3 incomes cover 900 yuan wish and 300 yuan baseline expense')
@@ -35,7 +35,7 @@ assert.equal(cashflowProjection(mixed, { ...plan, annualRate: .8 }, today, '2100
 assert.ok(cashflowProjection(mixed, { ...plan, monthlyIncomeCents: 0 }, today, '2027-01-31').rows.at(-1)!.balanceCents < 0, 'insufficient custom income shows a deficit')
 const zero = cashflowProjection(journal([]), { monthlyExpenseCents: 0, annualRate: .8 }, today, '2027-10-31')
 assert.equal(zero.required.incomeCents, 0, 'empty plan has no invented income requirement')
-assert.deepEqual(financialDefaults({ ...journal([]), monthlySummaries: [{ month: '2026-09', incomeCents: 1800000, expenseCents: 650000, note: '' }] }, today), { monthlyExpenseCents: 650000, annualRate: .8, includeRedeemable: false })
+assert.deepEqual(financialDefaults({ ...journal([]), monthlySummaries: [{ month: '2026-09', incomeCents: 1800000, expenseCents: 650000, note: '' }] }, today), { monthlyExpenseCents: 650000, annualRate: .8, includeRedeemable: false, fundingSource: 'salary-only', incomeBasis: 'gross' })
 assert.equal(isJournal({ ...mixed, financialPlan: plan }), true)
 assert.equal(isUneditedSample({ ...seedJournal(), financialPlan: plan }), false, 'a saved personal plan must preserve an edited legacy journal')
 const monthlyRows = cashflowProjection(mixed, plan, today, '2027-01-31').rows
@@ -45,7 +45,7 @@ const maturityRow = cashflowProjection(locked, { ...plan, monthlyExpenseCents: 0
 assert.equal(maturityRow.maturityCents, 105000)
 assert.equal(maturityRow.incomeCents, 0, 'maturity principal and contract interest are a transfer into cash, not salary again')
 // Independent discounting formula for one future payment, no daily expenses.
-const compoundPlan = { monthlyExpenseCents: 0, annualRate: .8 }
+const compoundPlan: FinancialPlan = { monthlyExpenseCents: 0, annualRate: .8, fundingSource: 'assets-and-salary' }
 const due = '2027-01-31', discount = (day: string) => 1.008 ** ((Date.parse(day) - Date.parse(today)) / 86400000 / 365)
 const discountedSalary = ['2026-11-01', '2026-12-01', '2027-01-01'].reduce((sum, day) => sum + 1 / discount(day), 0)
 const independentlyRequired = Math.ceil((90000 / discount(due) - 10000) / discountedSalary)

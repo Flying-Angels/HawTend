@@ -56,6 +56,6 @@ export function FundsPage({ journal, edit, update, saveAccounts, busy, planning 
     })}</div>
     {!visible.length && <div className="blank-card"><Icon name="wallet" size={29}/><h2>{funds.length ? '这个账户还没有资产。' : '给手里的钱，一个清楚的位置。'}</h2><p>点击“添加资金”，选择账户、类别与更新方式。</p></div>}
     <ValueHistory funds={manual} />
-    <div className="notice financial-note"><Icon name="leaf" size={20}/><span>资金规划汇总全部账户与心愿。试算不会改动余额或账单；转账、基金市值变化仍需按实际情况记录。</span></div>
+    <div className="notice financial-note"><Icon name="leaf" size={20}/><span>月薪反推只用未来工资承担愿望与日常开销。这里的账户、资产与实际账单独立记录，试算不会改动它们。</span></div>
   </section>
 }

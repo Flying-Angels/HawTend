@@ -2,6 +2,30 @@
 .income-planning { background: var(--surface); border: 1px solid var(--line); border-radius: 12px; padding: 23px 24px; margin: 0 0 28px; }
 .income-planning-heading { display: flex; gap: 18px; justify-content: space-between; align-items: center; margin-bottom: 20px; }
 .income-planning-heading h2 { font: 22px/1.7 var(--serif); margin: 8px 0 0; }
+.income-planning-heading p { color: var(--muted); font-size: 12px; line-height: 1.9; margin: 8px 0 0; }
+.salary-target-summary { grid-template-columns: 1.5fr 1fr 1fr; }
+.income-summary .income-primary p b { font-family: var(--number); color: var(--accent); font-weight: 500; }
+.income-summary .salary-incomplete { margin-bottom: 0; }
+.salary-source { display: flex; gap: 9px; align-items: flex-start; color: var(--accent); font-size: 12px; line-height: 1.9; margin: 17px 0; }
+.salary-source svg { flex-shrink: 0; margin-top: 3px; }
+.salary-reasoning { padding: 20px 0 7px; border-top: 1px solid var(--line); }
+.salary-reasoning h3 { font: 17px/1.8 var(--serif); margin: 0 0 15px; }
+.salary-monthly-breakdown { display: flex; align-items: center; gap: 20px; flex-wrap: wrap; }
+.salary-monthly-breakdown div { min-width: 0; }
+.salary-monthly-breakdown div > span { font-size: 11px; color: var(--muted); }
+.salary-monthly-breakdown strong { display: block; font: 22px/1.8 var(--number); color: var(--accent); overflow-wrap: anywhere; }
+.salary-equals { color: var(--muted); font: 22px/1.4 var(--number); }
+.salary-reasoning > p { font-size: 11px; line-height: 1.9; color: var(--muted); margin: 12px 0 0; }
+.salary-wishes { margin: 15px 0 5px; border-top: 1px solid var(--line); }
+.salary-wishes > summary { display: flex; align-items: center; justify-content: space-between; gap: 12px; min-height: 44px; color: var(--accent); font-size: 12px; cursor: pointer; list-style: none; }
+.salary-wishes summary::-webkit-details-marker { display: none; }
+.salary-wishes[open] > summary svg { transform: rotate(90deg); }
+.salary-wishes ul { list-style: none; margin: 0; padding: 0; }
+.salary-wishes li { padding: 10px 0; border-top: 1px solid var(--line); }
+.salary-wishes li > div { display: flex; justify-content: space-between; align-items: baseline; gap: 8px 20px; flex-wrap: wrap; }
+.salary-wishes li strong { font-size: 12px; font-weight: 500; overflow-wrap: anywhere; }
+.salary-wishes li span, .salary-wishes li p { font-size: 11px; line-height: 1.8; color: var(--muted); margin: 4px 0 0; }
+.salary-display-note { display: block; font-size: 11px; color: var(--muted); margin-bottom: 8px; }
 .income-summary .income-primary > strong { font-size: 34px; line-height: 1.6; }
 .income-primary .text-button { display: flex; padding: 5px 0; min-height: 44px; }
 .income-basis { display: flex; gap: 4px; padding: 3px; border: 1px solid var(--line); border-radius: 7px; width: fit-content; max-width: 100%; }
@@ -84,6 +108,11 @@
   .timeline-income-strip { flex-direction: column; align-items: flex-start; padding: 15px; }
   .timeline-income-strip > div { flex-direction: column; gap: 5px; }.timeline-income-strip small { font-size: 11px; }
   .salary-settings p { font-size: 12px; }
+  .salary-monthly-breakdown { display: grid; grid-template-columns: minmax(0, 1fr) 18px minmax(0, 1fr); gap: 8px 12px; }
+  .salary-monthly-breakdown .salary-equals:nth-child(4) { grid-column: 1; }
+  .salary-monthly-breakdown > div:last-child { grid-column: 2 / -1; }
+  .salary-monthly-breakdown strong { font-size: 20px; }
+  .salary-reasoning > p, .salary-wishes li strong, .salary-wishes li span, .salary-wishes li p { font-size: 12px; }
   .income-summary { grid-template-columns: minmax(0, 1fr); gap: 15px; padding: 18px; }
   .income-summary > div + div { padding-top: 12px; border-top: 1px solid var(--line); }
   .income-summary p, .planning-hint, .cashflow-detail p, .cashflow-detail li { font-size: 12px; }
