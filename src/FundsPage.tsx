@@ -28,8 +28,8 @@ function ValueHistory({ funds }: { funds: Fund[] }) {
   </section>
 }
 
-export function FundsPage({ journal, edit, update, saveAccounts, busy, forecast }: {
-  journal: Journal; edit: (fund: Fund) => void; update: (fund: Fund) => void; saveAccounts: (accounts: AssetAccount[]) => Promise<boolean>; busy: boolean; forecast: ReactNode
+export function FundsPage({ journal, edit, update, saveAccounts, busy, planning }: {
+  journal: Journal; edit: (fund: Fund) => void; update: (fund: Fund) => void; saveAccounts: (accounts: AssetAccount[]) => Promise<boolean>; busy: boolean; planning: ReactNode
 }) {
   const today = useToday(), accounts = journal.accounts ?? []
   const [filter, setFilter] = useState<string | null>(null), [manage, setManage] = useState(false)
@@ -41,6 +41,7 @@ export function FundsPage({ journal, edit, update, saveAccounts, busy, forecast 
   const visible = funds.filter(f => filter === null || (f.accountId ?? '') === filter)
   const manual = visible.filter(manualValue)
   return <section className="funds-page">
+    {planning}
     <div className="fund-summary"><div><span>记录的总资产</span><strong>¥{exactYuan(total)}</strong><p>各资产最近一次记录，余额日期可能不同</p></div><div><span>可用于规划</span><strong>¥{exactYuan(available)}</strong><p>其中可赎回基金 ¥{exactYuan(redeemable)}<br/>不代表全部能即时到账</p></div><div><span>暂不可用</span><strong>¥{exactYuan(locked)}</strong><p>尚未到期或暂不可赎回的资产</p></div></div>
     <div className="section-heading"><div><span className="eyebrow">A PLACE FOR EVERY PART</span><h2>我的资金账户</h2></div><button className="quiet-button" aria-expanded={manage} onClick={() => setManage(!manage)}><Icon name="settings" size={15}/>管理账户</button></div>
     {manage && <AssetAccounts journal={journal} busy={busy} save={saveAccounts} />}
@@ -55,7 +56,6 @@ export function FundsPage({ journal, edit, update, saveAccounts, busy, forecast 
     })}</div>
     {!visible.length && <div className="blank-card"><Icon name="wallet" size={29}/><h2>{funds.length ? '这个账户还没有资产。' : '给手里的钱，一个清楚的位置。'}</h2><p>点击“添加资金”，选择账户、类别与更新方式。</p></div>}
     <ValueHistory funds={manual} />
-    {forecast}
     <div className="notice financial-note"><Icon name="leaf" size={20}/><span>资金规划汇总全部账户与心愿。试算不会改动余额或账单；转账、基金市值变化仍需按实际情况记录。</span></div>
   </section>
 }

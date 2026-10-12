@@ -43,6 +43,13 @@ export interface FinancialPlan {
   monthlyIncomeCents?: number
   includeRedeemable?: boolean
   includedMonthlyGoalIds?: string[]
+  incomeBasis?: 'net' | 'gross'
+  grossMonthlyIncomeCents?: number
+  salaryDeductions?: SalaryDeductions
+}
+export interface SalaryDeductions {
+  monthlyEmployeeCents: number
+  monthlyAdditionalCents: number
 }
 export interface AssetAccount { id: string; name: string; kind: 'payment' | 'bank' | 'cash' | 'other' }
 export type AssetType = 'cash' | 'deposit' | 'fund' | 'other'

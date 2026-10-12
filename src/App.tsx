@@ -7,7 +7,9 @@ import { CategoryField, CategoryManager, CategoryProvider, useCategories, useCat
 import { categoryAppearance, isCategoryDefinitions, journalCategories, withCategories } from './categories'
 import { yuan } from './finance'
 import { cashflowProjection, financialDefaults } from './cashflow'
-import { FinancialPlanning, CashFlowTracks, CashFlowDetail } from './FinancialPlanning'
+import { CashFlowTracks, CashFlowDetail } from './FinancialPlanning'
+import { IncomePlanning, TimelineIncome, CashFlowControls } from './IncomePlanning'
+import type { PlanningProps } from './IncomePlanning'
 import { GoalForm } from './GoalForm'
 import { goalBudgetLabel, goalStatus, goalStatuses } from './goals'
 import { readJournal, writeJournal } from './storage'
@@ -71,7 +73,7 @@ function TimelineRangeEditor({ range, apply, close }: { range: TimelineRange; ap
   </Modal>
 }
 
-function Timeline({ journal, compact = false, open, range, setRange, financial = false, savePlan, busy = false, sample = false }: { journal: Journal; compact?: boolean; open: (panel: Panel) => void; range: TimelineRange; setRange: (range: TimelineRange) => void; financial?: boolean; savePlan: (plan: FinancialPlan) => Promise<boolean>; busy?: boolean; sample?: boolean }) {
+function Timeline({ journal, compact = false, open, range, setRange, financial = false, toggleFinancial, planning, editPlanning }: { journal: Journal; compact?: boolean; open: (panel: Panel) => void; range: TimelineRange; setRange: (range: TimelineRange) => void; financial?: boolean; toggleFinancial?: (visible: boolean) => void; planning?: PlanningProps; editPlanning?: () => void }) {
   const today = useToday()
   const { categories } = useCategories()
   const [filter, setFilter] = useState<Category | 'all'>('all')
@@ -80,13 +82,11 @@ function Timeline({ journal, compact = false, open, range, setRange, financial =
   const [zoom, setZoom] = useState(() => zoomForMonths(range.months))
   const [editingRange, setEditingRange] = useState(false)
   const closeRange = useCallback(() => setEditingRange(false), [])
-  const [curve, setCurve] = useState(financial)
-  const [plan, setPlan] = useState(() => financialDefaults(journal, today))
+  const curve = financial
   const [cashView, setCashView] = useState<'flows' | 'balance'>('flows')
   const [selectedMonth, setSelectedMonth] = useState(today.slice(0, 7))
-  useEffect(() => { setPlan(financialDefaults(journal, today)) }, [journal.financialPlan, today])
   useEffect(() => { setZoom(zoomForMonths(range.months)) }, [range.months])
-  const projection = useMemo(() => !compact && curve ? cashflowProjection(journal, plan, today, new Date(timelineBounds(range).end - 86400000).toISOString().slice(0, 10)) : null, [journal, plan, today, range, compact, curve])
+  const projection = !compact && curve ? planning?.result : null
   const scroll = useRef<HTMLDivElement>(null)
   const scrollTarget = useRef<string | null>(financial && Date.parse(today) >= timelineBounds(range).start && Date.parse(today) < timelineBounds(range).end ? today : null)
   const pan = useRef<{ x: number; left: number; moved: boolean } | null>(null)
@@ -141,15 +141,15 @@ function Timeline({ journal, compact = false, open, range, setRange, financial =
         <input aria-label="时间跨度" aria-valuetext={spanLabel} type="range" min="0" max="100" step="0.1" value={zoom} onChange={e => zoomRange(Number(e.target.value))} />
         <span className="zoom-landmarks" aria-hidden="true"><span>1个月</span><span>3年</span><span>100年</span></span>
       </span><output>{spanLabel}</output></label>
-      <button className={`quiet-button ${curve ? 'active' : ''}`} aria-pressed={curve} onClick={() => { if (!curve && todayX >= 0 && todayX <= width) scrollTarget.current = today; setCurve(!curve) }}><Icon name="wallet" size={16} />资金轨迹</button>
+      <button className={`quiet-button ${curve ? 'active' : ''}`} aria-pressed={curve} onClick={() => { if (!curve && todayX >= 0 && todayX <= width) scrollTarget.current = today; toggleFinancial?.(!curve) }}><Icon name="wallet" size={16} />资金轨迹</button>
     </div>}
-    {projection && <FinancialPlanning journal={journal} plan={plan} update={setPlan} save={savePlan} result={projection} view={cashView} setView={setCashView} busy={busy} sample={sample} today={today} />}
+    {projection && planning && <><TimelineIncome plan={planning.plan} result={projection} journal={journal} today={today} edit={() => editPlanning?.()} /><CashFlowControls plan={planning.plan} update={planning.update} view={cashView} setView={setCashView} /></>}
     {isEmpty && <div className="timeline-empty" role="status"><Icon name="leaf" size={28} /><div><p>这段时间还没有节点</p><span>换个分类，或写下一个值得记住的日子。</span></div></div>}
     <div ref={scroll} className="timeline-scroll" tabIndex={0} role="region" aria-label="可横向拖动的人生时间轴" onKeyDown={e => { if (e.target === e.currentTarget && ['ArrowLeft', 'ArrowRight'].includes(e.key)) { e.preventDefault(); scroll.current!.scrollLeft += e.key === 'ArrowLeft' ? -180 : 180 } }}
       onPointerDown={e => { if (e.pointerType !== 'mouse' || (e.target as HTMLElement).closest('button, [role=button]')) return; pan.current = { x: e.clientX, left: scroll.current!.scrollLeft, moved: false }; e.currentTarget.setPointerCapture(e.pointerId) }}
       onPointerMove={e => { if (!pan.current) return; const delta = e.clientX - pan.current.x; if (Math.abs(delta) > 4) pan.current.moved = true; scroll.current!.scrollLeft = pan.current.left - delta }}
       onPointerUp={() => { pan.current = null }} onPointerCancel={() => { pan.current = null }}>
-      {projection && <CashFlowTracks journal={journal} result={projection} range={range} width={width} position={position} today={today} view={cashView} select={setSelectedMonth} />}
+      {projection && planning && <CashFlowTracks journal={journal} result={projection} plan={planning.plan} range={range} width={width} position={position} today={today} view={cashView} select={setSelectedMonth} selected={selectedMonth} />}
       <div className="timeline-canvas" style={{ width }}>
         <div className="axis-line" />
         <span className="axis-origin">过去</span><span className="axis-future">未来 <Icon name="arrow" size={16} /></span>
@@ -226,7 +226,11 @@ export default function App() {
   const personalJournal = useRef<Journal>(emptyJournal())
   const [page, setPage] = useState<Page>('home')
   const [sharedRange, setSharedRange] = useState<TimelineRange>(() => timelineRange(`${today.slice(0, 4)}-01`, 36))
-  const [fundsView, setFundsView] = useState<'monthly' | 'funds'>('monthly')
+  const [financialVisible, setFinancialVisible] = useState(false)
+  const [plan, setPlan] = useState<FinancialPlan>(() => financialDefaults(journal, today))
+  useEffect(() => { setPlan(financialDefaults(journal, today)) }, [journal.financialPlan, journal.monthlySummaries, sampleMode, today])
+  const projection = useMemo(() => cashflowProjection(journal, plan, today, new Date(timelineBounds(sharedRange).end - 86400000).toISOString().slice(0, 10)), [journal, plan, today, sharedRange])
+  const [fundsView, setFundsView] = useState<'monthly' | 'funds'>('funds')
   const [panel, setPanel] = useState<Panel | null>(null)
   const [status, setStatus] = useState<Status>('loading')
   const [online, setOnline] = useState(navigator.onLine)
@@ -300,6 +304,9 @@ export default function App() {
   const total = journal.funds.reduce((sum, f) => sum + f.principalCents, 0)
   const latest = [...journal.moments].sort((a, b) => b.date.localeCompare(a.date))[0]
   const disabled = status === 'loading' || status === 'saving' || loadError.current
+  const openFinancialTimeline = () => { setFinancialVisible(true); navigate('timeline') }
+  const editIncomePlanning = () => { setFundsView('funds'); navigate('funds') }
+  const planning: PlanningProps = { journal, plan, update: setPlan, save: savePlan, result: projection, busy: disabled, sample: sampleMode, today }
   const isBlank = !journal.moments.length && !journal.goals.length && !journal.funds.length && !journal.monthlySummaries?.length && !journal.accounts?.length
   return <CategoryProvider journal={journal} busy={disabled} save={saveCategories}><div className="app-shell">
     <aside className="sidebar"><button className="brand" onClick={() => navigate('home')} aria-label="HawTend，返回我的手账"><span className="brand-symbol"><BrandMark size={36} /></span><span>HawTend<small>照料生活，慢慢生长</small></span></button><span className="sidebar-label">属于你的日子</span><nav aria-label="主要导航">{navItems.map(n => <button key={n.id} className={`nav-item ${page === n.id ? 'active' : ''}`} aria-current={page === n.id ? 'page' : undefined} onClick={() => navigate(n.id)}><Icon name={n.icon} />{n.label}{page === n.id && <span className="nav-dot" />}</button>)}</nav><div className="sidebar-note"><Icon name="sprout" size={27} /><p>不必把每一天填满，<br />慢慢走，也是在向前。</p><span>给未来的自己</span></div><div className="sidebar-bottom"><button className="settings-link" onClick={() => setPanel({ type: 'settings' })}><Icon name="settings" size={18} />手账设置</button><div className="profile"><span className="avatar">我</span><div><strong>我的人生手账</strong><small>{sampleMode ? "样例体验 · 虚构数据" : "个人空间 · 本机手账"}</small></div></div></div></aside>
@@ -314,12 +321,12 @@ export default function App() {
         <section className="overview-stats" aria-label="手账概览"><div><span><Icon name="flag" size={16} />正在靠近的心愿</span><strong>{journal.goals.length}<small>个</small></strong><p>每一点进展，都算数</p></div><div><span><Icon name="wallet" size={16} />已为未来留存</span><strong><small>¥</small>{yuan(total)}</strong><p>参考日余额 · 含定期资金</p></div><div><span><Icon name="book" size={16} />值得记住的日子</span><strong>{journal.moments.length}<small>篇</small></strong><p>生活里的小小里程碑</p></div></section>
         {!sampleMode && isBlank && status === 'saved' && <section className="first-page-card"><span className="first-page-icon"><Icon name="leaf" size={26} /></span><div><h2>生活的第一页，留给你来写。</h2><p>从一个小小的心愿，或今天值得记住的事开始。</p></div><button className="primary-button" disabled={disabled} onClick={newMoment}>记下第一天<Icon name="arrow" size={16} /></button></section>}
         {status === "saved" && !journal.monthlySummaries?.some(s => s.month === previousMonth(today)) && <div className="home-month-reminder"><Icon name="wallet" size={20} /><span>{previousMonth(today).replace("-", ".")} 的收支还没收好，每月记一次就好。</span><button className="text-button" onClick={() => { setFundsView("monthly"); navigate("funds") }}>补记上个月<Icon name="arrow" size={15} /></button></div>}
-        <Timeline journal={journal} compact open={setPanel} range={sharedRange} setRange={setSharedRange} savePlan={savePlan} />
+        <Timeline journal={journal} compact open={setPanel} range={sharedRange} setRange={setSharedRange} />
         <div className="home-bottom"><section className="goals-preview"><div className="section-heading"><div><span className="eyebrow">A LITTLE CLOSER</span><h2>想做的事，慢慢实现</h2></div><button className="text-button" onClick={() => navigate('goals')}>全部心愿<Icon name="arrow" size={16} /></button></div>{journal.goals.slice(0, 3).map(g => <GoalCard key={g.id} goal={g} open={setPanel} />)}{!journal.goals.length && <div className="empty-state">未来还空着，给它留一个心愿吧。<button className="text-button" onClick={newGoal}>添加心愿</button></div>}</section><section className="journal-preview"><div className="section-heading"><div><span className="eyebrow">A NOTE TO MYSELF</span><h2>留给自己的话</h2></div><Icon name="edit" size={19} /></div>{latest ? <button className="reflection-card" onClick={() => setPanel({ type: 'moment', item: latest })}><div><CategoryTag category={latest.category} /><span>{dateLabel(latest.date)}</span></div><span className="quote-mark">“</span><div className="reflection-excerpt"><RichText value={latest.reflection || '这一天的心情，可以慢慢写下来。'} format={latest.reflectionFormat} summary /></div><strong>{latest.title}<Icon name="arrow" size={15} /></strong></button> : <div className="empty-state">给今天的自己写几句话。<button className="text-button" onClick={newMoment}>记录一天</button></div>}</section></div>
       </>}
-      {page === 'timeline' && <><div className="page-heading"><span className="eyebrow">PAST, PRESENT & POSSIBILITY</span><h1>日子连起来，就是人生。</h1><p>已发生的大事与未来的心愿，在这里相遇。</p></div><Timeline journal={journal} open={setPanel} range={sharedRange} setRange={setSharedRange} savePlan={savePlan} busy={disabled} sample={sampleMode} /><div className="timeline-bottom-note"><Icon name="book" size={25} /><div><strong>事情有大小，感受没有。</strong><p>分类颜色帮你找到同类的日子；重要程度用星标、大小与文字一起区分。</p></div><button className="quiet-button" onClick={newMoment} disabled={disabled}><Icon name="plus" size={17} />记录一个日子</button></div></>}
+      {page === 'timeline' && <><div className="page-heading"><span className="eyebrow">PAST, PRESENT & POSSIBILITY</span><h1>日子连起来，就是人生。</h1><p>已发生的大事与未来的心愿，在这里相遇。</p></div><Timeline journal={journal} open={setPanel} range={sharedRange} setRange={setSharedRange} financial={financialVisible} toggleFinancial={setFinancialVisible} planning={planning} editPlanning={editIncomePlanning} /><div className="timeline-bottom-note"><Icon name="book" size={25} /><div><strong>事情有大小，感受没有。</strong><p>分类颜色帮你找到同类的日子；重要程度用星标、大小与文字一起区分。</p></div><button className="quiet-button" onClick={newMoment} disabled={disabled}><Icon name="plus" size={17} />记录一个日子</button></div></>}
       {page === 'goals' && <><div className="page-heading with-action"><div><span className="eyebrow">MAKE ROOM FOR WHAT MATTERS</span><h1>心愿有了位置，<br className="mobile-only" />未来就有了方向。</h1><p>给想做的事一点时间，也一点认真。</p></div><button className="primary-button" onClick={newGoal} disabled={disabled}><Icon name="plus" size={17} />添加心愿</button></div><div className="goal-grid">{journal.goals.map(g => <div key={g.id} className="goal-tile"><CategoryTag category={g.category} /><GoalCard goal={g} open={setPanel} /><p>{g.description}</p><button className="text-button" onClick={() => setPanel({ type: 'goal', item: g })}>看看如何靠近它<Icon name="arrow" size={16} /></button></div>)}</div>{!journal.goals.length && <section className="blank-card"><Icon name="flag" size={32} /><h2>把第一份期待，写在这里。</h2><p>不必一次想好整个人生，先给一件想做的事留个位置。</p><button className="quiet-button" disabled={disabled} onClick={newGoal}>添加第一个心愿<Icon name="plus" size={16} /></button></section>}<div className="gentle-banner"><Icon name="sprout" size={28} /><p>计划可以调整。<br /><span>一次性费用、每月投入，都可以随着生活调整。</span></p></div></>}
-      {page === 'funds' && <><div className="page-heading with-action"><div><span className="eyebrow">A LITTLE PEACE OF MIND</span><h1>为想要的生活，<br className="mobile-only" />留一份底气。</h1><p>回看每月的花费，也安排慢慢长大的积蓄。</p></div>{fundsView === "funds" && <button className="primary-button" onClick={newFund} disabled={disabled}><Icon name="plus" size={17} />添加资金</button>}</div><div className="funds-tabs" role="group" aria-label="收支与资金视图"><button aria-pressed={fundsView === "monthly"} onClick={() => setFundsView("monthly")}><Icon name="book" size={17} />每月收支</button><button aria-pressed={fundsView === "funds"} onClick={() => setFundsView("funds")}><Icon name="wallet" size={17} />资金安排</button></div>{fundsView === "monthly" ? <MonthlyLedger summaries={journal.monthlySummaries ?? []} save={saveMonthly} remove={removeMonthly} busy={disabled} sample={sampleMode} uninvested={newCashFund} /> : <FundsPage journal={journal} edit={item => setPanel({ type: "fund", item })} update={item => setPanel({ type: "valuation", item })} saveAccounts={saveAccounts} busy={disabled} forecast={<Timeline journal={journal} open={setPanel} range={sharedRange} setRange={setSharedRange} savePlan={savePlan} busy={disabled} sample={sampleMode} financial />} />}</>}
+      {page === 'funds' && <><div className="page-heading with-action"><div><span className="eyebrow">A LITTLE PEACE OF MIND</span><h1>为想要的生活，<br className="mobile-only" />留一份底气。</h1><p>回看每月的花费，也安排慢慢长大的积蓄。</p></div>{fundsView === "funds" && <button className="primary-button" onClick={newFund} disabled={disabled}><Icon name="plus" size={17} />添加资金</button>}</div><div className="funds-tabs" role="group" aria-label="收支与资金视图"><button aria-pressed={fundsView === "monthly"} onClick={() => setFundsView("monthly")}><Icon name="book" size={17} />每月收支</button><button aria-pressed={fundsView === "funds"} onClick={() => setFundsView("funds")}><Icon name="wallet" size={17} />资金安排</button></div>{fundsView === "monthly" ? <MonthlyLedger summaries={journal.monthlySummaries ?? []} save={saveMonthly} remove={removeMonthly} busy={disabled} sample={sampleMode} uninvested={newCashFund} /> : <FundsPage journal={journal} edit={item => setPanel({ type: "fund", item })} update={item => setPanel({ type: "valuation", item })} saveAccounts={saveAccounts} busy={disabled} planning={<IncomePlanning {...planning} openTimeline={openFinancialTimeline} />} />}</>}
       <footer className="page-footer"><span>HawTend · 好好生活，慢慢记录</span><button onClick={() => setPanel({ type: 'settings' })} className="text-button">本地原型 · 云同步未连接<Icon name="cloud" size={15} /></button></footer>
       </div></main>
     <nav className="mobile-nav" aria-label="手机主要导航">{navItems.map(n => <button key={n.id} className={page === n.id ? 'active' : ''} aria-current={page === n.id ? 'page' : undefined} onClick={() => navigate(n.id)}><Icon name={n.icon} size={21} /><span>{n.short}</span></button>)}<button className="mobile-add" disabled={disabled} aria-label="记下一刻" onClick={() => setPanel({ type: 'new' })}><Icon name="plus" size={23} /><span>记录</span></button></nav>

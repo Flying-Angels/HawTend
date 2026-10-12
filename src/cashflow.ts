@@ -3,6 +3,7 @@ import { availableForPlanning, manualValue } from './assets.ts'
 import { futureValue } from './finance.ts'
 import { goalStatus } from './goals.ts'
 import { monthAt, monthIndex } from './timeline-range.ts'
+import { isSalaryDeductions, MAX_SALARY_CENTS, salaryFromGross } from './income-tax.ts'
 
 const dayTime = (date: string) => Date.parse(`${date}T00:00:00Z`)
 const lastDay = (month: string) => new Date(dayTime(`${monthAt(monthIndex(month) + 1)}-01`) - 86400000).toISOString().slice(0, 10)
@@ -14,6 +15,9 @@ export function isFinancialPlan(value: unknown): value is FinancialPlan {
     && (row.monthlyIncomeCents === undefined || money(row.monthlyIncomeCents))
     && (row.includeRedeemable === undefined || typeof row.includeRedeemable === 'boolean')
     && (row.includedMonthlyGoalIds === undefined || Array.isArray(row.includedMonthlyGoalIds) && row.includedMonthlyGoalIds.length <= 2000 && row.includedMonthlyGoalIds.every(id => typeof id === 'string') && new Set(row.includedMonthlyGoalIds).size === row.includedMonthlyGoalIds.length)
+    && (row.incomeBasis === undefined || row.incomeBasis === 'net' || row.incomeBasis === 'gross')
+    && (row.salaryDeductions === undefined || isSalaryDeductions(row.salaryDeductions))
+    && (row.grossMonthlyIncomeCents === undefined || money(row.grossMonthlyIncomeCents) && row.grossMonthlyIncomeCents <= MAX_SALARY_CENTS && row.incomeBasis === 'gross' && row.monthlyIncomeCents === salaryFromGross(row.grossMonthlyIncomeCents, row.salaryDeductions as FinancialPlan['salaryDeductions'] ?? { monthlyEmployeeCents: 0, monthlyAdditionalCents: 0 }).netCents)
 }
 
 export function financialDefaults(journal: Journal, today: string): FinancialPlan {
@@ -37,7 +41,7 @@ export interface MonthFlow {
   maturityCents: number
   balanceCents: number
   minimumCents: number
-  wishes: { id: string; title: string; amountCents: number; kind: 'once' | 'monthly' }[]
+  wishes: { id: string; title: string; amountCents: number; kind: 'once' | 'monthly'; date: string }[]
 }
 interface Event { date: string; kind: 'income' | 'expense' | 'maturity' | 'close'; amount: number; wish?: Goal; monthly?: boolean }
 
@@ -110,7 +114,7 @@ export function cashflowProjection(journal: Journal, plan: FinancialPlan, today:
     if (event.kind === 'maturity') { balance += event.amount; row.maturityCents += event.amount }
     if (event.kind === 'expense') {
       balance -= event.amount; row.expenseCents += event.amount
-      if (event.wish) { row.wishExpenseCents += event.amount; row.wishes.push({ id: event.wish.id, title: event.wish.title, amountCents: event.amount, kind: event.monthly ? 'monthly' : 'once' }) }
+      if (event.wish) { row.wishExpenseCents += event.amount; row.wishes.push({ id: event.wish.id, title: event.wish.title, amountCents: event.amount, kind: event.monthly ? 'monthly' : 'once', date: event.date }) }
       else row.dailyExpenseCents += event.amount
     }
     row.minimumCents = Math.min(row.minimumCents, Math.round(balance)); row.balanceCents = Math.round(balance)
