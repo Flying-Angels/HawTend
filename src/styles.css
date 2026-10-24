@@ -148,14 +148,12 @@ svg { vertical-align: middle; }
 .goal-card > svg { color: var(--muted); }
 .goal-card:hover strong { color: var(--accent); }
 .reflection-card { text-align: left; width: 100%; background: #ececde; border-radius: 9px; padding: 20px 24px; position: relative; min-height: 265px; }
-.reflection-card > div { display: flex; justify-content: space-between; align-items: center; gap: 10px; }
-.reflection-card > div > span:last-child { font-size: 9px; color: var(--muted); }
-.reflection-card > div > span:last-child { flex-shrink: 0; }
+.reflection-meta { display: flex; justify-content: space-between; align-items: center; gap: 10px; }
+.reflection-meta > span:last-child { font-size: 9px; color: var(--muted); flex-shrink: 0; }
 .category-tag { display: inline-flex; align-items: center; gap: 5px; font-size: 10px; padding: 5px 7px; color: var(--category); background: var(--category-light); border-radius: 4px; white-space: nowrap; }
 .quote-mark { display: block; font: 46px/1 var(--number); color: #b7bea3; margin: 14px 0 -14px; }
-.reflection-card p { font: 15px/2.05 var(--serif); letter-spacing: .4px; display: -webkit-box; -webkit-line-clamp: 4; -webkit-box-orient: vertical; overflow: hidden; overflow-wrap: anywhere; }
-.reflection-card > strong { display: flex; gap: 12px; align-items: center; font-size: 9px; font-weight: 400; margin-top: 15px; color: var(--accent); }
-.reflection-card:hover { background: #e6e8d6; }
+.reflection-open { display: flex; gap: 12px; align-items: center; min-height: 44px; max-width: 100%; text-align: left; font-size: 11px; overflow-wrap: anywhere; margin-top: 8px; padding: 4px 0; color: var(--accent); }
+.reflection-open:hover { text-decoration: underline; text-underline-offset: 4px; }
 .page-footer { display: flex; align-items: center; justify-content: space-between; gap: 10px; padding: 32px 0 19px; color: var(--muted); font-size: 9px; }
 .page-footer .text-button { font-size: 9px; }
 .page-heading { padding: 27px 0 35px; }
@@ -543,7 +541,6 @@ input[type='range'] { accent-color: var(--accent); height: 24px; cursor: pointer
   .goal-card-top { font-size: 13px; }
   .goal-date { font-size: 10px; }
   .reflection-card { padding: 20px 23px; min-height: 235px; }
-  .reflection-card p { font-size: 16px; }
   .page-footer { align-items: flex-start; flex-direction: column; gap: 3px; padding: 25px 0 0; font-size: 9px; }
   .page-footer .text-button { min-height: 32px; }
   .mobile-nav { position: fixed; bottom: 0; left: 0; right: 0; display: flex; justify-content: space-around; background: color-mix(in srgb, var(--surface) 96%, transparent); backdrop-filter: blur(12px); border-top: 1px solid var(--line); padding: 7px 11px calc(8px + env(safe-area-inset-bottom)); z-index: 20; }
