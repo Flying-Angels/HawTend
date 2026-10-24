@@ -9,6 +9,7 @@ import './assets.css'
 import './goals.css'
 import './cashflow.css'
 import './desktop.css'
+import './drafts.css'
 
 ReactDOM.createRoot(document.getElementById('root')!).render(<React.StrictMode><App /></React.StrictMode>)
 

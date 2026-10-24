@@ -1,0 +1,19 @@
+.draft-banner { display: flex; align-items: center; gap: 17px; padding: 17px 22px; background: var(--surface); border: 1px solid var(--line); border-radius: 11px; margin-bottom: 24px; color: var(--accent); }
+.draft-banner > svg { flex-shrink: 0; }.draft-banner > div { flex: 1; min-width: 0; }
+.draft-banner strong { font: 17px/1.7 var(--serif); }.draft-banner p { font-size: 11px; line-height: 1.8; color: var(--muted); margin-top: 4px; }
+.moment-draft-status { display: flex; align-items: center; gap: 10px; border-radius: 8px; background: var(--hero); color: var(--accent); padding: 12px 14px; margin-bottom: 22px; font-size: 11px; line-height: 1.8; flex-wrap: wrap; }
+.moment-draft-status > svg { flex-shrink: 0; }.moment-draft-status > div { flex: 1; min-width: 130px; }
+.moment-draft-status strong { font-weight: 500; }.moment-draft-status small { display: block; color: var(--muted); font-size: 10px; }
+.moment-draft-status.failed { color: #974d37; background: #f6eedd; }.moment-draft-status.failed small { color: #974d37; }
+.moment-draft-list { padding: 21px 30px 28px; }.moment-draft-list > p { color: var(--muted); font-size: 12px; line-height: 1.9; }
+.moment-draft-list article { padding: 21px 0; border-bottom: 1px solid var(--line); }.moment-draft-list article:last-of-type { border-bottom: 0; }
+.moment-draft-list h3 { font: 19px/1.8 var(--serif); margin: 8px 0; overflow-wrap: anywhere; }
+.moment-draft-list .draft-excerpt { font: 14px/1.9 var(--serif); color: var(--ink); white-space: pre-wrap; overflow-wrap: anywhere; }
+.moment-draft-list small { display: block; font-size: 10px; line-height: 1.8; margin-top: 12px; color: var(--muted); }
+.draft-actions { display: flex; gap: 12px 18px; align-items: center; flex-wrap: wrap; margin-top: 13px; }.draft-delete { margin-left: auto; color: var(--muted); }
+.draft-actions button { min-height: 44px; }.draft-delete-confirm { padding: 15px; border-radius: 8px; background: var(--hero); margin-top: 14px; }
+.draft-delete-confirm p { font-size: 12px; line-height: 1.8; }.draft-conflict { margin-bottom: 18px; }
+@media (max-width: 760px) {
+  .draft-banner { gap: 12px; padding: 16px; flex-wrap: wrap; }.draft-banner > div { flex-basis: calc(100% - 44px); }.draft-banner button { margin-left: 34px; min-height: 44px; }
+  .draft-banner p, .moment-draft-status, .moment-draft-status small { font-size: 12px; }.moment-draft-list { padding: 18px 21px 25px; }
+}

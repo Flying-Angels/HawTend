@@ -29,11 +29,15 @@ import { assetSample } from './asset-demo'
 import { DesktopContinuity, desktopTheme, isDesktop } from './DesktopContinuity'
 import { FundEditor, ValuationEditor } from './FundEditor'
 import { isAssetAccounts } from './assets'
+import { useMomentDraft } from './useMomentDraft'
+import { downloadMomentDraft, matchesPublished, MOMENT_DRAFT_PREFIX, readMomentDrafts, sameMoment } from './moment-drafts'
+import type { MomentDraft } from './moment-drafts'
+import { MomentDraftList } from './MomentDrafts'
 
 const dateLabel = (date: string) => date.replaceAll('-', '.')
 const navItems = [{ id: 'home', label: '我的手账', short: '手账', icon: 'home' }, { id: 'timeline', label: '人生时间轴', short: '时间轴', icon: 'timeline' }, { id: 'goals', label: '心愿与目标', short: '心愿', icon: 'flag' }, { id: 'funds', label: '资金安排', short: '资金', icon: 'wallet' }] as const
 type Page = typeof navItems[number]['id']
-type Panel = { type: 'moment'; item: Moment; fresh?: boolean } | { type: 'goal'; item: Goal; fresh?: boolean } | { type: 'fund'; item: Fund; fresh?: boolean } | { type: 'valuation'; item: Fund } | { type: 'settings' } | { type: 'new' }
+type Panel = { type: 'moment'; item: Moment; fresh?: boolean; draft?: MomentDraft } | { type: 'goal'; item: Goal; fresh?: boolean } | { type: 'fund'; item: Fund; fresh?: boolean } | { type: 'valuation'; item: Fund } | { type: 'settings' } | { type: 'new' } | { type: 'drafts' }
   | { type: 'cluster'; items: { kind: 'moment' | 'goal'; item: Moment | Goal }[] }
 type Status = 'loading' | 'saved' | 'saving' | 'failed'
 
@@ -185,9 +189,11 @@ function GoalCard({ goal, open }: { goal: Goal; open: (panel: Panel) => void }) 
   </button>
 }
 
-function MomentForm({ item, fresh, save, sample = false }: { item: Moment; fresh?: boolean; save: (item: Moment) => Promise<boolean>; sample?: boolean }) {
+function MomentForm({ item, fresh, save, sample = false, restored, closeGuard, refreshDrafts }: { item: Moment; fresh?: boolean; save: (item: Moment) => Promise<boolean>; sample?: boolean; restored?: MomentDraft; closeGuard: { current: (() => boolean) | null }; refreshDrafts: () => void }) {
   const today = useToday()
-  const [draft, setDraft] = useState(item)
+  const autosave = useMomentDraft(item, restored, sample)
+  const { draft, update: setDraft, persist } = autosave
+  useLayoutEffect(() => { closeGuard.current = persist; return () => { if (closeGuard.current === persist) closeGuard.current = null } }, [closeGuard, persist])
   const [pending, setPending] = useState(false)
   const [error, setError] = useState('')
   const [preview, setPreview] = useState(false)
@@ -203,19 +209,24 @@ function MomentForm({ item, fresh, save, sample = false }: { item: Moment; fresh
     if (draft.date > localDay()) { setError('大事记记录已发生的日子，未来的事情请添加为目标。'); return }
     if (changedDate && !preview) { setPreview(true); return }
     setPending(true)
-    const ok = await save({ ...draft, title: draft.title.trim() })
+    const published = { ...draft, title: draft.title.trim() }
+    const ok = await save(published)
+    if (ok) { autosave.finish(published); refreshDrafts() }
     setPending(false)
     if (!ok) setError('保存未完成。文字还在这里，请重试或复制留存。')
   }
-  return <form className="editor" onSubmit={submit}><div className="detail-tags"><CategoryTag category={draft.category} /><span className="importance-tag"><Icon name={draft.importance === 3 ? 'star' : 'sun'} size={14} />{importanceLabels[draft.importance]}</span></div>
+  return <form className="editor" onSubmit={submit}>
+    {!sample && <div className={`moment-draft-status ${autosave.state === 'failed' ? 'failed' : ''}`} role="status"><Icon name={autosave.state === 'failed' ? 'edit' : 'check'} size={17} /><div><strong>{autosave.state === 'failed' ? '草稿自动保存失败' : autosave.state === 'saved' ? restored ? '已恢复草稿 · 修改会自动保存' : '草稿已自动保存' : '开始写，草稿会自动保存'}</strong><small>{autosave.state === 'failed' ? '已保留当前文字，暂时不能关闭。请重试、下载草稿或收进手账。' : autosave.savedAt ? `本机 · ${new Date(autosave.savedAt).toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit', hour12: false })} · 关闭后可在草稿箱继续写` : '误点关闭或重启后，可从草稿箱继续写。'}</small></div>{autosave.state === 'failed' && <><button className="quiet-button" type="button" onClick={persist}>重试保存草稿</button><button className="text-button" type="button" onClick={() => downloadMomentDraft(draft)}>下载这份草稿</button></>}</div>}
+    {restored && !fresh && !sameMoment(restored.base, item) && <p className="notice draft-conflict">正式记录在这份草稿之后有过修改，请检查内容后再收进手账。</p>}
+    <div className="detail-tags"><CategoryTag category={draft.category} /><span className="importance-tag"><Icon name={draft.importance === 3 ? 'star' : 'sun'} size={14} />{importanceLabels[draft.importance]}</span></div>
     <label>这一天的标题<input required maxLength={120} value={draft.title} onChange={e => setDraft({ ...draft, title: e.target.value })} placeholder="有什么值得记住？" /></label>
     <div className="form-grid"><CalendarField label="发生日期" max={today} value={draft.date} change={date => { setDraft({ ...draft, date }); setPreview(false) }} /><CategoryField value={draft.category} change={category => setDraft(current => ({ ...current, category }))} manage={() => setManageCategories(!manageCategories)} expanded={manageCategories} managerId={managerId} /></div>
     {manageCategories && <CategoryManager id={managerId} onCreated={category => setDraft(current => ({ ...current, category }))} />}
-    <label>对我有多重要<select value={draft.importance} onChange={e => setDraft({ ...draft, importance: Number(e.target.value) as Importance })}>{Object.entries(importanceLabels).map(([k, v]) => <option key={k} value={k}>{v}</option>)}</select></label>
+    <label>对我有多重要<select aria-label="对我有多重要" value={draft.importance} onChange={e => setDraft({ ...draft, importance: Number(e.target.value) as Importance })}>{Object.entries(importanceLabels).map(([k, v]) => <option key={k} value={k}>{v}</option>)}</select></label>
     <RichTextEditor label="发生了什么" value={draft.story} format={draft.storyFormat} change={(story, storyFormat) => setDraft(current => ({ ...current, story, storyFormat }))} placeholder="记录事情本身，几句话就好。" />
     <div className="reflection-field"><RichTextEditor label="留给自己的话" note="感想 · 可稍后补写" value={draft.reflection} format={draft.reflectionFormat} change={(reflection, reflectionFormat) => setDraft(current => ({ ...current, reflection, reflectionFormat }))} placeholder="当时的心情、后来想通的事，都可以留在这里。" /></div>
     {preview && <div className="notice">日期将从 {dateLabel(item.date)} 改为 {dateLabel(draft.date)}，节点位置随之更新。感想与资金安排不会改变；保存后可撤销。</div>}
-    {error && <p role="alert" className="form-error">{error}</p>}<div className="editor-footer"><span>{sample ? '样例体验 · 不写入个人手账' : '仅保存到本机'}</span><button className="primary-button" disabled={pending || busy} type="submit"><Icon name="check" size={17} />{pending ? '正在保存…' : changedDate && !preview ? '预览日期调整' : preview ? '确认调整并保存' : '收进手账'}</button></div>
+    {error && <p role="alert" className="form-error">{error}</p>}<div className="editor-footer"><span>{sample ? '样例体验 · 不写入个人手账' : '草稿自动保存 · 收进手账后正式入册'}</span><button className="primary-button" disabled={pending || busy} type="submit"><Icon name="check" size={17} />{pending ? '正在保存…' : changedDate && !preview ? '预览日期调整' : preview ? '确认调整并保存' : '收进手账'}</button></div>
   </form>
 }
 
@@ -237,7 +248,21 @@ export default function App() {
   const [toast, setToast] = useState('')
   const [undo, setUndo] = useState<Journal | null>(null)
   const [cacheFailed, setCacheFailed] = useState(false)
-  const closePanel = useCallback(() => setPanel(null), [])
+  const [draftSnapshot, setDraftSnapshot] = useState(readMomentDrafts)
+  const refreshDrafts = useCallback(() => setDraftSnapshot(readMomentDrafts()), [])
+  const closeGuard = useRef<(() => boolean) | null>(null)
+  const closePanel = useCallback(() => { if (closeGuard.current && !closeGuard.current()) return; setPanel(null); refreshDrafts() }, [refreshDrafts])
+  const drafts = draftSnapshot.drafts.filter(d => !journal.moments.some(m => matchesPublished(d.item, m)))
+  const resumeDraft = (draft: MomentDraft) => {
+    const recorded = journal.moments.find(m => m.id === draft.item.id)
+    const category = journalCategories(journal).some(c => c.id === draft.item.category) ? draft.item.category : journalCategories(journal)[0].id
+    setPanel({ type: 'moment', item: recorded ?? draft.base, fresh: !recorded, draft: { ...draft, item: { ...draft.item, category } } })
+  }
+  useEffect(() => {
+    const changed = (event: StorageEvent) => { if (!event.key || event.key.startsWith(MOMENT_DRAFT_PREFIX)) refreshDrafts() }
+    window.addEventListener('storage', changed); window.addEventListener('focus', refreshDrafts)
+    return () => { window.removeEventListener('storage', changed); window.removeEventListener('focus', refreshDrafts) }
+  }, [refreshDrafts])
   const saving = useRef(false)
   const loadError = useRef(false)
   const loaded = useRef(false)
@@ -313,6 +338,8 @@ export default function App() {
     <main className="main"><header className="topbar"><div className="breadcrumb">我的空间<span>/</span>{navItems.find(n => n.id === page)?.label}</div><span className="mobile-brand"><BrandMark size={28} />HawTend</span><div className="topbar-actions"><span className={`save-status ${status === 'failed' ? 'failed' : ''}`} role="status"><span className="status-dot" />{sampleMode ? '样例体验' : status === 'loading' ? '正在打开手账' : status === 'saving' ? '正在保存' : status === 'failed' ? '本地保存不可用' : !online ? '离线 · 本机保存' : '仅本机保存'}</span><button className="icon-button mobile-settings" aria-label="手账设置" onClick={() => setPanel({ type: 'settings' })}><Icon name="settings" size={18} /></button><button className="primary-button top-record" disabled={disabled} onClick={() => setPanel({ type: 'new' })}><Icon name="plus" size={17} />记下一刻</button></div></header>
       <div className="content"><div className="prototype-note"><span>{sampleMode ? '样例手账 · 虚构内容' : '我的手账 · 本机空间'}</span><button className="text-button" disabled={disabled} onClick={switchSample}>{sampleMode ? '回到我的手账' : '看看样例'}<Icon name="arrow" size={13} /></button></div>
       {sampleMode && <section className="sample-banner" aria-label="样例体验说明"><Icon name="book" size={23} /><div><strong>这是一本用来体验的样例手账</strong><p>可以自由试试。这里的修改不会保存，也不会加入你的个人手账。</p></div></section>}
+      {!sampleMode && status !== 'loading' && drafts.length > 0 && <section className="draft-banner" aria-label="待续写的草稿"><Icon name="edit" size={23} /><div><strong>还有 {drafts.length} 篇日子，等你继续写</strong><p>草稿已自动留在本机，还没有加入正式手账。</p></div><button className="quiet-button" onClick={() => drafts.length === 1 ? resumeDraft(drafts[0]) : setPanel({ type: 'drafts' })}>继续写<Icon name="arrow" size={15} /></button><button className="text-button" onClick={() => setPanel({ type: 'drafts' })}>草稿箱</button></section>}
+      {!sampleMode && (draftSnapshot.unavailable || draftSnapshot.unreadable > 0) && <p className="notice" role="alert">{draftSnapshot.unavailable ? '本机草稿暂时无法读取。' : `有 ${draftSnapshot.unreadable} 份草稿格式无法读取，原数据已保留。`}<button className="text-button" onClick={refreshDrafts}>重试读取草稿</button></p>}
       <DesktopContinuity journal={journal} busy={disabled} sample={sampleMode} exportData={exportData} save={next => change(next, '旧手账已接续到此窗口', false, false)} />
       {status === 'failed' && <div className="notice" role="alert">{loadError.current ? '本地手账读取失败，暂不显示已存内容并暂停写入，防止覆盖已有数据。请刷新重试。' : '刚才的修改未保存，请在详情中重试。原有记录仍保留。'} <button className="text-button" onClick={exportData}>导出当前内容</button></div>}
       {cacheFailed && <div className="notice" role="alert">离线页面缓存未建立，请联网使用。已写入本地的记录不受影响。</div>}
@@ -330,14 +357,15 @@ export default function App() {
       <footer className="page-footer"><span>HawTend · 好好生活，慢慢记录</span><button onClick={() => setPanel({ type: 'settings' })} className="text-button">本地原型 · 云同步未连接<Icon name="cloud" size={15} /></button></footer>
       </div></main>
     <nav className="mobile-nav" aria-label="手机主要导航">{navItems.map(n => <button key={n.id} className={page === n.id ? 'active' : ''} aria-current={page === n.id ? 'page' : undefined} onClick={() => navigate(n.id)}><Icon name={n.icon} size={21} /><span>{n.short}</span></button>)}<button className="mobile-add" disabled={disabled} aria-label="记下一刻" onClick={() => setPanel({ type: 'new' })}><Icon name="plus" size={23} /><span>记录</span></button></nav>
-    {panel && <Modal title={panel.type === 'moment' ? panel.fresh ? '记下一个日子' : '回到那一天' : panel.type === 'goal' ? panel.fresh ? '给未来一个心愿' : '慢慢靠近这个心愿' : panel.type === 'fund' ? panel.fresh ? '给积蓄一个位置' : '安排这笔积蓄' : panel.type === 'valuation' ? '记下这次市值变化' : panel.type === 'settings' ? '把手账调成喜欢的样子' : panel.type === 'cluster' ? '这一段，发生了这些事' : '这一刻，想记下什么？'} subtitle={panel.type === 'moment' ? '事情与感想，分别收藏。' : panel.type === 'new' ? '一个已经发生的日子，或一个正在期待的未来。' : undefined} close={closePanel}>
+    {panel && <Modal title={panel.type === 'moment' ? panel.fresh ? '记下一个日子' : '回到那一天' : panel.type === 'goal' ? panel.fresh ? '给未来一个心愿' : '慢慢靠近这个心愿' : panel.type === 'fund' ? panel.fresh ? '给积蓄一个位置' : '安排这笔积蓄' : panel.type === 'valuation' ? '记下这次市值变化' : panel.type === 'settings' ? '把手账调成喜欢的样子' : panel.type === 'drafts' ? '留待续写的日子' : panel.type === 'cluster' ? '这一段，发生了这些事' : '这一刻，想记下什么？'} subtitle={panel.type === 'moment' ? '事情与感想，分别收藏。' : panel.type === 'new' ? '一个已经发生的日子，或一个正在期待的未来。' : undefined} close={closePanel}>
       {panel.type === 'cluster' && <div className="cluster-list">{panel.items.map(({ kind, item }) => <button key={item.id} onClick={() => setPanel(kind === 'moment' ? { type: 'moment', item: item as Moment } : { type: 'goal', item: item as Goal })}><CategoryTag category={item.category} /><span><strong>{item.title}</strong><small>{dateLabel(item.date)} · {kind === 'moment' ? importanceLabels[(item as Moment).importance] : '未来计划'}</small></span><Icon name="chevron" size={17} /></button>)}</div>}
       {sampleMode && panel.type !== 'settings' && <p className="notice">样例体验：这里的修改仅在本次浏览中保留，不会写入个人手账。</p>}
-      {panel.type === 'moment' && <MomentForm key={panel.item.id} item={panel.item} fresh={panel.fresh} save={saveMoment} sample={sampleMode} />}
+      {panel.type === 'moment' && <MomentForm key={panel.draft?.id ?? panel.item.id} item={panel.item} fresh={panel.fresh} save={saveMoment} sample={sampleMode} restored={panel.draft} closeGuard={closeGuard} refreshDrafts={refreshDrafts} />}
       {panel.type === 'goal' && <GoalForm key={panel.item.id} item={panel.item} fresh={panel.fresh} save={saveGoal} sample={sampleMode} />}
       {panel.type === 'fund' && <FundEditor key={panel.item.id} item={panel.item} fresh={panel.fresh} journal={journal} save={saveFund} saveAccounts={saveAccounts} update={() => setPanel({ type: "valuation", item: panel.item })} busy={disabled} />}
       {panel.type === 'valuation' && <ValuationEditor key={panel.item.id} item={panel.item} save={saveFund} busy={disabled} />}
-      {panel.type === 'new' && <div className="new-options"><button onClick={newMoment}><span className="option-icon"><Icon name="book" size={26} /></span><span><strong>值得记住的日子</strong><small>记录事情，也记录当时的心情</small></span><Icon name="arrow" size={19} /></button><button onClick={newGoal}><span className="option-icon blue"><Icon name="flag" size={26} /></span><span><strong>对未来的一个期待</strong><small>放上时间轴，慢慢计划与实现</small></span><Icon name="arrow" size={19} /></button></div>}
+      {panel.type === 'drafts' && <MomentDraftList drafts={drafts} resume={resumeDraft} refresh={refreshDrafts} />}
+      {panel.type === 'new' && <div className="new-options">{!sampleMode && drafts.length > 0 && <button onClick={() => setPanel({ type: 'drafts' })}><span className="option-icon"><Icon name="edit" size={26} /></span><span><strong>继续写草稿</strong><small>{drafts.length} 篇日子已自动保存，等你续写</small></span><Icon name="arrow" size={19} /></button>}<button onClick={newMoment}><span className="option-icon"><Icon name="book" size={26} /></span><span><strong>值得记住的日子</strong><small>记录事情，也记录当时的心情</small></span><Icon name="arrow" size={19} /></button><button onClick={newGoal}><span className="option-icon blue"><Icon name="flag" size={26} /></span><span><strong>对未来的一个期待</strong><small>放上时间轴，慢慢计划与实现</small></span><Icon name="arrow" size={19} /></button></div>}
       {panel.type === 'settings' && <div className="settings-panel"><p className="settings-intro">三种生活的底色，试试哪一种更像你。<br /><span>HawTend · 好好照料生活，也记录慢慢长大的自己。</span></p><div className="theme-options">{([{ id: 'paper', title: '暖纸手账', note: '纸色与鼠尾草绿，安静而有温度', colors: ['#f5f2eb', '#566958', '#c79265'] }, { id: 'forest', title: '森林笔记', note: '浅雾绿与深林色，清新、自然', colors: ['#edf1e9', '#41654f', '#94a881'] }, { id: 'dusk', title: '暮色日记', note: '浅燕麦与梅子色，柔软而内敛', colors: ['#f4eef0', '#805d70', '#c1949d'] }] as const).map(t => <button key={t.id} disabled={disabled} className={`theme-option ${journal.theme === t.id ? 'chosen' : ''}`} aria-pressed={journal.theme === t.id} onClick={() => change({ ...journal, theme: t.id }, '手账配色已保存到本机', false)}><span className="swatches">{t.colors.map(c => <i key={c} style={{ background: c }} />)}</span><strong>{t.title}</strong><span>{t.note}</span>{journal.theme === t.id && <Icon name="check" size={17} />}</button>)}</div><CategoryManager />{isDesktop() && !sampleMode && isBlank && <button className="quiet-button" disabled={disabled} onClick={() => { setPanel(null); setPage('home'); window.scrollTo(0, 0); window.dispatchEvent(new Event('hawtend-continue')) }}>接续以前的手账<Icon name="arrow" size={16} /></button>}<div className="settings-storage"><Icon name="book" size={25} /><div><h3>{sampleMode ? "正在体验样例手账" : "样例和你的手账，分别收藏"}</h3><p>新手账从空白开始。样例只用于体验，修改不会加入个人记录。</p><button className="text-button" disabled={disabled} onClick={switchSample}>{sampleMode ? "回到我的手账" : "查看样例手账"}<Icon name="arrow" size={16} /></button></div></div><div className="settings-storage"><Icon name="cloud" size={25} /><div><h3>这里是本地设计原型</h3><p>{isDesktop() ? "云同步尚未接入。编辑保存在这台电脑的独立手账空间，不会同步到另一台设备。可以导出文件留存。" : "云同步尚未接入。编辑仅存于当前浏览器，不会同步到另一台设备。浏览器清理可能删除本地内容，可以先导出留存。"}</p></div></div><button className="quiet-button export-button" onClick={exportData}><Icon name="download" size={18} />{sampleMode ? "导出样例手账 JSON" : "导出我的手账 JSON"}</button><p className="fine-print">账单导入、逐笔记账、数据恢复、账户登录与健康记录在后续分期实现。每月收支现已支持本机记录。请先用虚构内容体验流程。</p></div>}
     </Modal>}
     {toast && <div className="toast" role="status"><Icon name="check" size={18} /><span>{toast}</span>{undo && <button onClick={async () => { const previous = undo; if (previous && await change(previous, '已撤销上一次修改', false, false)) setUndo(null) }}>撤销</button>}<button className="icon-button" aria-label="关闭保存提示" onClick={() => { setToast(''); setUndo(null) }}><Icon name="close" size={15} /></button></div>}
