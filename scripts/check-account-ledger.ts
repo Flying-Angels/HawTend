@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict'
-import { applyAccountUpdate, balanceComparison, bookkeepingDue, bookkeepingDays, isAccountSettlements, isAccountSnapshots, recordedIntervalGains, settlementExpense } from '../src/account-ledger.ts'
+import { applyAccountUpdate, applyOpeningUpdate, applyRecordedBalances, balanceComparison, bookkeepingDue, bookkeepingDays, isAccountSettlements, isAccountSnapshots, latestCheckInDate, recordedBalanceOn, recordedIntervalGains, settlementExpense } from '../src/account-ledger.ts'
 import { homeTimelineDates } from '../src/timeline-range.ts'
 import { isJournal } from '../src/cloud/journal-validation.ts'
 import type { Fund, Journal } from '../src/model.ts'
@@ -44,4 +44,23 @@ assert.equal(bookkeepingDue(undefined, today), false)
 assert.equal(bookkeepingDue('2026-12-08', '2027-01-02'), true)
 assert.deepEqual(homeTimelineDates(today), { first: '2026-09-17', last: '2026-12-17' })
 assert.deepEqual(homeTimelineDates('2024-01-31'), { first: '2023-11-30', last: '2024-02-29' })
+
+const endOnly = { ...full, accountSnapshots: full.accountSnapshots?.filter(row => row.date === today) }
+assert.equal(balanceComparison(endOnly, from, today).ready, false, 'one complete snapshot cannot imply spending')
+assert.equal(latestCheckInDate(endOnly, '2026-11-18'), today, 'reopening on a later day selects the check-in just completed')
+assert.equal(recordedBalanceOn(endOnly, 'a', from), null, 'overwritten old balances are not reconstructed from newer balances')
+assert.equal(recordedBalanceOn({ ...endOnly, funds: [manual] }, 'a', from), 100_000, 'an exact dated historical valuation can be offered for confirmation')
+assert.equal(recordedBalanceOn({ ...endOnly, funds: [a, { ...manual, valuationBase: { date: '2026-10-22', valueCents: 100_000 } }] }, 'a', from), null, 'partial/mixed-date account values cannot be offered as a total')
+const backfilled = applyOpeningUpdate(endOnly, { from, to: today, balances: [{ accountId: 'a', balanceCents: 6_000_000 }, { accountId: 'b', balanceCents: 4_000_000 }] }, '2026-11-18')
+assert.equal(backfilled.funds, endOnly.funds, 'opening backfill never changes current assets')
+assert.deepEqual(backfilled.accountSnapshots?.filter(row => row.date === today), endOnly.accountSnapshots)
+assert.equal(balanceComparison(backfilled, from, today).ready, true)
+assert.throws(() => applyOpeningUpdate(endOnly, { from, to: today, balances: [{ accountId: 'a', balanceCents: 6_000_000 }] }, today), /全部账户/)
+assert.throws(() => applyOpeningUpdate(endOnly, { from: today, to: today, balances: [] }, today), /早于/)
+const existingEnd = endOnly.accountSnapshots!.find(row => row.accountId === 'a')!
+const imported = applyRecordedBalances({ ...full, accountSnapshots: [{ ...existingEnd, balanceCents: 5_650_000 }] }, today, today)!
+assert.equal(imported.accountSnapshots?.length, 2)
+assert.equal(imported.accountSnapshots?.find(row => row.accountId === 'a')?.balanceCents, 5_650_000, 'import leaves already checked accounts untouched')
+assert.equal(imported.accountSnapshots?.find(row => row.accountId === 'b')?.balanceCents, 5_000_000)
+assert.equal(applyRecordedBalances({ ...initial, funds: [a, { ...b, startDate: today }] }, '2026-11-16', today), null, 'do not carry forward out-of-date balances')
 console.log('Account ledger checks passed: isolated writes, complete date boundaries, gain/debt handling, legacy compatibility, 25-day reminder, and rolling home dates')

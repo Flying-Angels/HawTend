@@ -82,15 +82,67 @@ export function applyAccountUpdate(journal: Journal, input: AccountUpdate, today
   return { ...journal, funds, accountSnapshots, lastBookkeepingDay: today }
 }
 
+export function intervalAccounts(journal: Journal, from: string, to: string) {
+  const snapshots = journal.accountSnapshots ?? []
+  return ledgerAccounts(journal).filter(a => a.active || snapshots.some(s => s.accountId === a.id && s.date >= from && s.date <= to)
+    || (snapshots.filter(s => s.accountId === a.id && s.date < from).sort((a, b) => b.date.localeCompare(a.date))[0]?.balanceCents ?? 0) > 0)
+}
+
 export function balanceComparison(journal: Journal, from: string, to: string) {
   const snapshots = journal.accountSnapshots ?? []
-  const accounts = ledgerAccounts(journal).filter(a => a.active || snapshots.some(s => s.accountId === a.id && s.date >= from && s.date <= to)
-    || (snapshots.filter(s => s.accountId === a.id && s.date < from).sort((a, b) => b.date.localeCompare(a.date))[0]?.balanceCents ?? 0) > 0)
+  const accounts = intervalAccounts(journal, from, to)
   const opening = snapshots.filter(s => s.date === from), closing = snapshots.filter(s => s.date === to)
   const missing = (rows: AccountSnapshot[]) => accounts.filter(a => !rows.some(s => s.accountId === a.id)).map(a => a.name)
   const missingOpening = missing(opening), missingClosing = missing(closing)
   const openingCents = opening.reduce((sum, s) => sum + s.balanceCents, 0), closingCents = closing.reduce((sum, s) => sum + s.balanceCents, 0)
   return { openingCents, closingCents, missingOpening, missingClosing, ready: validAssetDate(from) && validAssetDate(to) && from < to && accounts.length > 0 && !missingOpening.length && !missingClosing.length }
+}
+
+export function latestCheckInDate(journal: Journal, today: string) {
+  return (journal.accountSnapshots ?? []).reduce((latest, row) => row.date <= today && row.date > latest ? row.date : latest, '') || today
+}
+
+// No carry-forward or forecast: each item must have a dated value for this day.
+export function recordedBalanceOn(journal: Journal, id: string | null, date: string): number | null {
+  const funds = journal.funds.filter(f => (f.accountId ?? null) === id)
+  if (!funds.length) return null
+  let total = 0
+  for (const fund of funds) {
+    const value = fund.startDate === date ? fund.principalCents : manualValue(fund) ? fund.valuations?.find(v => v.date === date)?.valueCents
+      ?? (fund.valuationBase?.date === date ? fund.valuationBase.valueCents : undefined) : undefined
+    if (value === undefined) return null
+    total += value
+  }
+  return money(total) ? total : null
+}
+
+export interface OpeningUpdate { from: string; to: string; balances: { accountId: string | null; balanceCents: number }[] }
+
+export function applyOpeningUpdate(journal: Journal, input: OpeningUpdate, today: string): Journal {
+  const { from, to, balances } = input
+  if (!validAssetDate(from) || !validAssetDate(to) || from >= to || to > today) throw new Error('请选择早于本次余额的期初日期。')
+  const accounts = intervalAccounts(journal, from, to)
+  const values = new Map(balances.map(row => [row.accountId, row.balanceCents]))
+  if (!accounts.length || values.size !== balances.length || values.size !== accounts.length || accounts.some(a => !money(values.get(a.id)))) throw new Error('请核对这一日期的全部账户，填写实际余额。')
+  const accountSnapshots = [...(journal.accountSnapshots ?? []).filter(row => row.date !== from || !values.has(row.accountId)),
+    ...accounts.map(a => ({ accountId: a.id, name: a.name, date: from, balanceCents: values.get(a.id)! }))]
+  if (!isAccountSnapshots(accountSnapshots)) throw new Error('期初余额未保存，请检查金额或先导出备份。')
+  return { ...journal, accountSnapshots, lastBookkeepingDay: today }
+}
+
+export function unrecordedAccountBalances(journal: Journal, date: string) {
+  return ledgerAccounts(journal).filter(a => a.active && !journal.accountSnapshots?.some(row => row.date === date && row.accountId === a.id)).flatMap(a => {
+    const balanceCents = recordedBalanceOn(journal, a.id, date)
+    return balanceCents === null ? [] : [{ accountId: a.id, name: a.name, date, balanceCents }]
+  })
+}
+
+export function applyRecordedBalances(journal: Journal, date: string, today: string): Journal | null {
+  if (!validAssetDate(date) || date > today) return null
+  const eligible = unrecordedAccountBalances(journal, date)
+  if (!eligible.length) return null
+  const accountSnapshots = [...(journal.accountSnapshots ?? []), ...eligible]
+  return isAccountSnapshots(accountSnapshots) ? { ...journal, accountSnapshots, lastBookkeepingDay: today } : null
 }
 
 // Only suggest recorded gains whose history starts and ends on these exact days.
