@@ -36,6 +36,11 @@ export interface Goal {
   monthlyStartMonth?: string
 }
 export interface MonthlySummary { month: string; incomeCents: number; expenseCents: number; note: string }
+export interface AccountSnapshot { accountId: string | null; name: string; date: string; balanceCents: number }
+export interface AccountSettlement {
+  from: string; to: string; openingCents: number; closingCents: number; incomeCents: number
+  gainCents: number; openingDebtCents: number; closingDebtCents: number
+}
 export interface FinancialPlan {
   fundingSource?: 'salary-only' | 'assets-and-salary'
   monthlyExpenseCents: number
@@ -81,6 +86,9 @@ export interface Journal {
   categories?: CategoryDefinition[]
   monthlySummaries?: MonthlySummary[]
   accounts?: AssetAccount[]
+  accountSnapshots?: AccountSnapshot[]
+  accountSettlements?: AccountSettlement[]
+  lastBookkeepingDay?: string
   financialPlan?: FinancialPlan
 }
 export const categories: Record<Category, { label: string; color: string; light: string; icon: string }> = {
@@ -107,6 +115,9 @@ export function isUneditedSample(journal: Journal): boolean {
     && JSON.stringify(journal.categories ?? defaultCategories()) === JSON.stringify(sample.categories)
     && !journal.monthlySummaries?.length
     && !journal.accounts?.length
+    && !journal.accountSnapshots?.length
+    && !journal.accountSettlements?.length
+    && !journal.lastBookkeepingDay
     && !journal.financialPlan
 }
 

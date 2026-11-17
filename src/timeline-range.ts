@@ -1,4 +1,10 @@
+import { shiftCalendarMonth } from './calendar-picker.ts'
+
 export interface TimelineRange { startMonth: string; months: number }
+
+export function homeTimelineDates(today: string) {
+  return { first: shiftCalendarMonth(today, -2), last: shiftCalendarMonth(today, 1) }
+}
 
 export const MIN_TIMELINE_MONTH = '1900-01'
 export const MAX_TIMELINE_MONTH = '2200-12'

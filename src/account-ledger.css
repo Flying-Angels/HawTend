@@ -1,0 +1,39 @@
+.ledger-round { display: flex; align-items: flex-end; justify-content: space-between; gap: 14px 24px; margin: 27px 0 9px; flex-wrap: wrap; }
+.ledger-round h2, .ledger-estimates h2 { font: 22px/1.65 var(--serif); margin: 5px 0; }
+.ledger-round p, .ledger-estimate > p, .bookkeeping-prompt p { color: var(--muted); font-size: 13px; line-height: 1.85; }
+.ledger-date { min-width: min(100%, 225px); }.ledger-date .date-field { margin: 0; }
+.ledger-progress { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 0 12px; font-size: 12px; color: var(--muted); }
+.ledger-account-list { display: grid; gap: 9px; }
+.ledger-account { background: var(--surface); border: 1px solid var(--line); border-radius: 9px; }
+.ledger-account-row { display: grid; grid-template-columns: 24px minmax(0, 1fr) minmax(0, auto) auto; gap: 12px 16px; align-items: center; padding: 14px 18px; color: var(--accent); }
+.ledger-account-row strong { font: 16px/1.7 var(--serif); overflow-wrap: anywhere; }
+.ledger-account-row small, .ledger-estimates small { display: block; font-size: 11px; color: var(--muted); line-height: 1.65; }
+.ledger-balance { text-align: right; }.ledger-balance b, .ledger-estimates b { font: 18px/1.5 var(--number); overflow-wrap: anywhere; }
+.ledger-account-row button, .bookkeeping-prompt button { min-height: 44px; }
+.ledger-balance-form { border-top: 1px solid var(--line); padding-top: 16px; }
+.ledger-balance-form > p, .ledger-estimate > p { margin: 0 0 14px; }
+.ledger-assets { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 225px), 1fr)); gap: 12px 18px; }
+.ledger-assets label, .ledger-balance-form > label { display: grid; gap: 7px; color: var(--muted); font-size: 12px; }
+.ledger-assets details { margin-top: 7px; }.ledger-assets details > summary, .ledger-account-history summary { font-size: 12px; color: var(--accent); cursor: pointer; padding: 12px 0; }
+.ledger-assets details > .form-grid { grid-template-columns: 1fr; gap: 0; }
+.ledger-account-history { padding: 0 28px 12px; }.ledger-account-history ul { padding: 0; list-style: none; }.ledger-account-history li { display: flex; justify-content: space-between; padding: 8px 0; border-top: 1px solid var(--line); font-size: 12px; }
+.ledger-balance-form .ledger-debt, .ledger-debt { display: flex; align-items: center; gap: 8px; min-height: 44px; margin-bottom: 8px; font-size: 12px; color: var(--muted); }
+.editor .ledger-debt input { width: 16px; height: 16px; min-height: auto; flex-shrink: 0; }
+.ledger-estimate h3 { margin: 8px 0; }.ledger-estimate .form-grid { align-items: center; }
+.ledger-period-end { padding-bottom: 14px; }.ledger-period-end span, .ledger-totals span { display: block; font-size: 11px; color: var(--muted); }
+.ledger-period-end strong, .ledger-totals strong { font: 19px/1.7 var(--number); color: var(--accent); overflow-wrap: anywhere; }
+.ledger-totals { display: grid; grid-template-columns: 1fr 1fr; gap: 13px; padding: 13px 16px; background: var(--hero); border-radius: 8px; margin: 12px 0 18px; }
+.ledger-estimate .ledger-explain { padding: 12px 16px; border-radius: 7px; background: var(--hero); color: var(--accent); overflow-wrap: anywhere; }.ledger-estimate .month-editor-net { gap: 8px; }.ledger-estimate .month-editor-net strong { text-align: right; overflow-wrap: anywhere; }
+.ledger-estimates article { display: flex; align-items: center; flex-wrap: wrap; gap: 10px 22px; border-bottom: 1px solid var(--line); padding: 14px 3px; font-size: 12px; color: var(--muted); }.ledger-estimates article > div { flex: 1 0 240px; }.ledger-estimates article strong { font: 16px var(--number); color: var(--ink); }.ledger-estimates b { color: var(--accent); }
+.bookkeeping-prompt > div { display: flex; justify-content: flex-end; gap: 10px; margin-top: 18px; }
+.small-modal-backdrop { align-items: center; }.small-modal-backdrop > .modal { width: min(430px, 100%); min-height: 0; }
+.compact-timeline-dates { margin: 9px 0 13px; font: 12px/1.8 var(--number); color: var(--accent); }.compact-timeline-dates span { margin-left: 9px; font: 11px/1.8 'Microsoft YaHei', sans-serif; color: var(--muted); }
+.compact .timeline-scroll { overflow: hidden; cursor: default; touch-action: pan-y; }
+.compact .timeline-node { z-index: 2; }
+.compact .node-meta { flex-wrap: wrap; justify-content: flex-start; }
+@media (max-width: 760px) {
+  .small-modal-backdrop { padding: 20px; }.small-modal-backdrop > .modal { border-radius: 13px; }
+  .ledger-account-row { grid-template-columns: 22px minmax(0, 1fr) auto; padding: 12px; gap: 7px 9px; }.ledger-balance { grid-column: 2; grid-row: 2; text-align: left; }.ledger-account-row button { grid-column: 3; grid-row: 1 / span 2; }
+  .ledger-balance-form, .ledger-estimate { padding: 17px 14px; }.ledger-estimate .form-grid { grid-template-columns: 1fr; gap: 0; }.ledger-estimate .month-editor-net strong { font-size: 18px; }
+  .compact .node-card { padding: 8px; }.compact .node-card strong { font-size: 12px; }.compact .node-amount { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+}

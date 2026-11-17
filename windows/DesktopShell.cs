@@ -130,6 +130,8 @@ internal sealed class DesktopShell : Form
             DesktopWindows.Focus(Handle);
             // Activation can apply WinForms' cached frame dimensions too.
             if (restoringNormal) RestoreWindowBounds(restore);
+            CoreWebView2 core = view.CoreWebView2;
+            if (core != null && core.Source != null && core.Source.StartsWith(address, StringComparison.Ordinal)) core.PostWebMessageAsJson("{\"type\":\"app-opened\"}");
         }
         finally { changingState = wasChanging; previousState = WindowState; LayoutWindow(); }
     }

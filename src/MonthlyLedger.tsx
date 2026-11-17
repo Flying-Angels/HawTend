@@ -3,12 +3,12 @@ import type { FormEvent } from 'react'
 import { cents, exactYuan } from './finance'
 import { Icon } from './Icons'
 import type { MonthlySummary } from './model'
-import { monthlyReminderCalendar, previousMonth, validMonth } from './monthly'
+import { previousMonth, validMonth } from './monthly'
 import { useToday } from './useToday'
 import { CalendarField } from './CalendarField'
 
-export function MonthlyLedger({ summaries, save, remove, busy, sample, uninvested }: {
-  summaries: MonthlySummary[]; save: (summary: MonthlySummary) => Promise<boolean>; remove: (month: string) => Promise<boolean>; busy: boolean; sample: boolean; uninvested: () => void
+export function MonthlyLedger({ summaries, save, remove, busy, sample, uninvested, back }: {
+  summaries: MonthlySummary[]; save: (summary: MonthlySummary) => Promise<boolean>; remove: (month: string) => Promise<boolean>; busy: boolean; sample: boolean; uninvested: () => void; back: () => void
 }) {
   const today = useToday(), due = previousMonth(today)
   const [editing, setEditing] = useState<string | null>(null)
@@ -16,7 +16,6 @@ export function MonthlyLedger({ summaries, save, remove, busy, sample, uninveste
   const [income, setIncome] = useState(''), [expense, setExpense] = useState(''), [note, setNote] = useState('')
   const [error, setError] = useState(''), [pending, setPending] = useState(false)
   const [deleting, setDeleting] = useState<string | null>(null)
-  const [calendarNotice, setCalendarNotice] = useState(false)
   const editor = useRef<HTMLFormElement>(null)
   useEffect(() => { if (editing !== null) editor.current?.querySelector<HTMLButtonElement>('.date-field-value')?.focus() }, [editing])
   const open = (period: string) => {
@@ -28,7 +27,6 @@ export function MonthlyLedger({ summaries, save, remove, busy, sample, uninveste
     // Do not discard amounts already typed when choosing a different month.
     setMonth(period); setError('')
   }
-  const row = summaries.find(s => s.month === due)
   const sorted = [...summaries].sort((a, b) => b.month.localeCompare(a.month))
   const submit = async (event: FormEvent) => {
     event.preventDefault()
@@ -40,14 +38,9 @@ export function MonthlyLedger({ summaries, save, remove, busy, sample, uninveste
     if (ok) setEditing(null)
     else setError('保存未完成，填写的金额仍在这里，请重试。')
   }
-  const calendar = () => {
-    const url = URL.createObjectURL(new Blob([monthlyReminderCalendar(today)], { type: 'text/calendar;charset=utf-8' }))
-    const a = document.createElement('a'); a.href = url; a.download = 'HawTend-每月补账提醒.ics'; a.click(); URL.revokeObjectURL(url); setCalendarNotice(true)
-  }
   return <section className="monthly-ledger">
-    <div className={`month-reminder ${row ? 'done' : ''}`} role="status"><Icon name={row ? 'check' : 'book'} size={25} /><div><strong>{row ? `${due.replace('-', ' 年 ')} 月，已经收好。` : `给 ${due.replace('-', ' 年 ')} 月，留一份收支记录。`}</strong><p>{row ? '月初回看一次，就能知道钱去了哪里。' : '不必记住每一笔，每月填一次收入与支出总额就好。'}</p></div><button className="quiet-button" disabled={busy} onClick={() => open(due)}>{row ? '回看上个月' : '补记上个月'}<Icon name="arrow" size={16} /></button></div>
-    <div className="month-overview"><div><span>上个月收入</span><strong>{row ? `¥${exactYuan(row.incomeCents)}` : '还没填写'}</strong></div><div><span>上个月支出</span><strong>{row ? `¥${exactYuan(row.expenseCents)}` : '还没填写'}</strong></div><div><span>上个月结余</span><strong className={row && row.incomeCents < row.expenseCents ? 'negative' : ''}>{row ? `¥${exactYuan(row.incomeCents - row.expenseCents)}` : '慢慢补齐'}</strong><small>收入 − 支出</small></div></div>
-    <div className="section-heading"><div><span className="eyebrow">THE MONEY IN YOUR DAYS</span><h2>每个月，都有自己的节奏</h2></div><button className="primary-button" disabled={busy} onClick={() => open(due)}>记录一个月<Icon name="plus" size={16} /></button></div>
+    <button className="text-button" onClick={back}><Icon name="chevron" className="reverse" size={15} />返回账户记账</button>
+    <div className="section-heading"><div><span className="eyebrow">THE MONEY IN YOUR DAYS</span><h2>整月收支补录</h2></div><button className="primary-button" disabled={busy} onClick={() => open(due)}>记录一个月<Icon name="plus" size={16} /></button></div>
     {editing !== null && <form ref={editor} className="editor month-editor" onSubmit={submit} aria-label="月度收支结算" noValidate>
       <div className="month-editor-heading"><h3>把这一个月收好</h3><button className="icon-button" type="button" aria-label="收起月度编辑" disabled={pending} onClick={() => setEditing(null)}><Icon name="close" size={18} /></button></div>
       <CalendarField label="记录月份" monthly min="1900-01" max={today.slice(0, 7)} value={month} change={changeMonth} />
@@ -61,7 +54,5 @@ export function MonthlyLedger({ summaries, save, remove, busy, sample, uninveste
     </form>}
     {sorted.length ? <div className="month-history">{sorted.map(s => <article key={s.month}><button className="month-history-row" onClick={() => open(s.month)} disabled={busy}><span className="month-history-date">{s.month.replace('-', '.')}<small>{s.month === today.slice(0, 7) ? '本月 · 可继续补充' : '月度结算'}</small></span><span><small>收入</small><strong>¥{exactYuan(s.incomeCents)}</strong></span><span><small>支出</small><strong>¥{exactYuan(s.expenseCents)}</strong></span><span><small>结余</small><strong className={s.incomeCents < s.expenseCents ? 'negative' : ''}>¥{exactYuan(s.incomeCents - s.expenseCents)}</strong></span><Icon name="chevron" size={16} /></button>{s.note && <p className="month-note">{s.note}</p>}<div className="month-row-actions">{deleting === s.month ? <><span>移除这份月结算？</span><button className="text-button" disabled={busy} onClick={async () => { if (await remove(s.month)) setDeleting(null) }}>确认移除</button><button className="text-button" onClick={() => setDeleting(null)}>保留</button></> : <button className="text-button" disabled={busy} onClick={() => setDeleting(s.month)}>移除记录</button>}</div></article>)}</div> : <div className="blank-card month-blank"><Icon name="book" size={30} /><h2>不必每天记账，也能看见生活的花费。</h2><p>从上个月开始，写下两个数字就好。</p></div>}
     <div className="monthly-guidance"><Icon name="leaf" size={23} /><div><strong>结余先留下，不急着计息。</strong><p>这里回看真实收支，不会自动增加资金余额。未投入的钱可以记录为 0% 收益的日常余额；投入后相应减少日常余额，再记录计息资金。自己账户间转账不算消费。</p><button className="text-button" disabled={busy} onClick={uninvested}>记录未计息余额<Icon name="arrow" size={15} /></button></div></div>
-    <div className="month-calendar"><div><strong>月初，给自己一个小提醒。</strong><p>页面会提示尚未补记的上个月。需要 App 关闭时也提醒，可下载日历事件并导入手机或电脑日历。</p></div><button className="quiet-button" onClick={calendar}><Icon name="download" size={16} />加入月初提醒</button></div>
-    {calendarNotice && <p role="status" className="calendar-notice">已生成日历文件。请打开并确认导入日历：每月 1 日当地时间 10:00 提醒一次，通知由日历 App 提供。尚未自动添加到你的日历。</p>}
   </section>
 }

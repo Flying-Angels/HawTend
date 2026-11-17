@@ -3,14 +3,18 @@ import type { Journal } from './model'
 import { assertJournal } from './cloud/journal-validation'
 import { Icon } from './Icons'
 
-type DesktopBridge = { postMessage: (message: { type: string; theme?: string }) => void }
+type DesktopBridge = {
+  postMessage: (message: { type: string; theme?: string }) => void
+  addEventListener: (type: 'message', listener: (event: MessageEvent) => void) => void
+  removeEventListener: (type: 'message', listener: (event: MessageEvent) => void) => void
+}
 declare global {
   interface Window { __HAWTEND_DESKTOP__?: boolean; chrome?: { webview?: DesktopBridge } }
 }
 export const isDesktop = () => window.__HAWTEND_DESKTOP__ === true && !!window.chrome?.webview
 export function desktopTheme(theme: Journal['theme']) { if (isDesktop()) window.chrome!.webview!.postMessage({ type: 'theme', theme }) }
 export function blankJournal(journal: Journal) {
-  return !journal.moments.length && !journal.goals.length && !journal.funds.length && !journal.monthlySummaries?.length && !journal.accounts?.length
+  return !journal.moments.length && !journal.goals.length && !journal.funds.length && !journal.monthlySummaries?.length && !journal.accounts?.length && !journal.accountSnapshots?.length && !journal.accountSettlements?.length
 }
 
 // Import is deliberately initiated and confirmed by the user. Nothing reads the
