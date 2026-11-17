@@ -91,15 +91,26 @@ export function intervalAccounts(journal: Journal, from: string, to: string) {
 export function balanceComparison(journal: Journal, from: string, to: string) {
   const snapshots = journal.accountSnapshots ?? []
   const accounts = intervalAccounts(journal, from, to)
-  const opening = snapshots.filter(s => s.date === from), closing = snapshots.filter(s => s.date === to)
-  const missing = (rows: AccountSnapshot[]) => accounts.filter(a => !rows.some(s => s.accountId === a.id)).map(a => a.name)
-  const missingOpening = missing(opening), missingClosing = missing(closing)
-  const openingCents = opening.reduce((sum, s) => sum + s.balanceCents, 0), closingCents = closing.reduce((sum, s) => sum + s.balanceCents, 0)
-  return { openingCents, closingCents, missingOpening, missingClosing, ready: validAssetDate(from) && validAssetDate(to) && from < to && accounts.length > 0 && !missingOpening.length && !missingClosing.length }
+  const opening = new Map(snapshots.filter(s => s.date === from).map(s => [s.accountId, s]))
+  const closing = new Map(snapshots.filter(s => s.date === to).map(s => [s.accountId, s]))
+  const lastBeforeClosing = new Map<string | null, AccountSnapshot>()
+  for (const row of snapshots) {
+    if (row.date < to && row.date > (lastBeforeClosing.get(row.accountId)?.date ?? '')) lastBeforeClosing.set(row.accountId, row)
+  }
+  const coverage = accounts.map(a => ({ ...a, opening: opening.get(a.id), closing: closing.get(a.id), previous: lastBeforeClosing.get(a.id) }))
+  const missingOpening = coverage.filter(a => !a.opening).map(a => a.name), missingClosing = coverage.filter(a => !a.closing).map(a => a.name)
+  const openingCents = coverage.reduce((sum, a) => sum + (a.opening?.balanceCents ?? 0), 0), closingCents = coverage.reduce((sum, a) => sum + (a.closing?.balanceCents ?? 0), 0)
+  return { openingCents, closingCents, missingOpening, missingClosing, coverage, ready: validAssetDate(from) && validAssetDate(to) && from < to && accounts.length > 0 && !missingOpening.length && !missingClosing.length }
 }
 
 export function latestCheckInDate(journal: Journal, today: string) {
   return (journal.accountSnapshots ?? []).reduce((latest, row) => row.date <= today && row.date > latest ? row.date : latest, '') || today
+}
+
+export function previousCheckIns(journal: Journal, to: string): { date: string; count: number }[] {
+  const counts = new Map<string, number>()
+  for (const row of journal.accountSnapshots ?? []) if (row.date < to) counts.set(row.date, (counts.get(row.date) ?? 0) + 1)
+  return [...counts].sort(([a], [b]) => b.localeCompare(a)).map(([date, count]) => ({ date, count }))
 }
 
 // No carry-forward or forecast: each item must have a dated value for this day.
@@ -124,8 +135,12 @@ export function applyOpeningUpdate(journal: Journal, input: OpeningUpdate, today
   const accounts = intervalAccounts(journal, from, to)
   const values = new Map(balances.map(row => [row.accountId, row.balanceCents]))
   if (!accounts.length || values.size !== balances.length || values.size !== accounts.length || accounts.some(a => !money(values.get(a.id)))) throw new Error('请核对这一日期的全部账户，填写实际余额。')
-  const accountSnapshots = [...(journal.accountSnapshots ?? []).filter(row => row.date !== from || !values.has(row.accountId)),
-    ...accounts.map(a => ({ accountId: a.id, name: a.name, date: from, balanceCents: values.get(a.id)! }))]
+  const snapshots = journal.accountSnapshots ?? []
+  const saved = new Map(snapshots.filter(row => row.date === from).map(row => [row.accountId, row.balanceCents]))
+  const updates = accounts.filter(a => saved.get(a.id) !== values.get(a.id))
+  const updatedIds = new Set(updates.map(a => a.id))
+  const accountSnapshots = [...snapshots.filter(row => row.date !== from || !updatedIds.has(row.accountId)),
+    ...updates.map(a => ({ accountId: a.id, name: a.name, date: from, balanceCents: values.get(a.id)! }))]
   if (!isAccountSnapshots(accountSnapshots)) throw new Error('期初余额未保存，请检查金额或先导出备份。')
   return { ...journal, accountSnapshots, lastBookkeepingDay: today }
 }

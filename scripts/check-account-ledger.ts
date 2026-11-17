@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict'
-import { applyAccountUpdate, applyOpeningUpdate, applyRecordedBalances, balanceComparison, bookkeepingDue, bookkeepingDays, isAccountSettlements, isAccountSnapshots, latestCheckInDate, recordedBalanceOn, recordedIntervalGains, settlementExpense } from '../src/account-ledger.ts'
+import { applyAccountUpdate, applyOpeningUpdate, applyRecordedBalances, balanceComparison, bookkeepingDue, bookkeepingDays, isAccountSettlements, isAccountSnapshots, latestCheckInDate, previousCheckIns, recordedBalanceOn, recordedIntervalGains, settlementExpense } from '../src/account-ledger.ts'
 import { homeTimelineDates } from '../src/timeline-range.ts'
 import { isJournal } from '../src/cloud/journal-validation.ts'
 import type { Fund, Journal } from '../src/model.ts'
@@ -23,6 +23,7 @@ assert.equal(settlementExpense({ from, to: today, ...comparison, incomeCents: 1_
 assert.equal(full.monthlySummaries, initial.monthlySummaries, 'new balance and interval tracking keep old monthly entries')
 const correction = edit(full, a, 5_600_000)
 assert.equal(correction.accountSnapshots!.length, full.accountSnapshots!.length, 'same date replaces rather than adding')
+assert.deepEqual(previousCheckIns(correction, today), [{ date: from, count: 2 }], 'the prior round survives today’s balance correction')
 const backfill = applyAccountUpdate(correction, { accountId: 'a', date: from, balanceCents: 6_123_456 }, today)
 assert.equal(backfill.funds, correction.funds, 'backfill must not change current assets')
 assert.throws(() => applyAccountUpdate(correction, { accountId: 'a', date: from, newCashId: 'unused', assets: [{ id: a.id, balanceCents: a.principalCents, netFlowCents: 0, distributionCents: 0 }] }, today), /更新的记录/)
@@ -57,6 +58,18 @@ assert.deepEqual(backfilled.accountSnapshots?.filter(row => row.date === today),
 assert.equal(balanceComparison(backfilled, from, today).ready, true)
 assert.throws(() => applyOpeningUpdate(endOnly, { from, to: today, balances: [{ accountId: 'a', balanceCents: 6_000_000 }] }, today), /全部账户/)
 assert.throws(() => applyOpeningUpdate(endOnly, { from: today, to: today, balances: [] }, today), /早于/)
+assert.deepEqual(previousCheckIns(endOnly, today), [], 'an end-date correction cannot be used as an earlier check-in')
+const newer = '2026-11-16'
+const mixedDates = applyAccountUpdate(full, { accountId: 'a', date: newer, balanceCents: 5_900_000 }, today)
+assert.deepEqual(previousCheckIns(mixedDates, today), [{ date: newer, count: 1 }, { date: from, count: 2 }])
+const pendingOpening = balanceComparison(mixedDates, newer, today)
+assert.deepEqual(pendingOpening.missingOpening, ['银行乙'])
+assert.equal(pendingOpening.coverage.find(row => row.id === 'a')?.opening?.balanceCents, 5_900_000)
+assert.equal(pendingOpening.coverage.find(row => row.id === 'b')?.previous?.date, from)
+const completedOpening = applyOpeningUpdate(mixedDates, { from: newer, to: today, balances: [{ accountId: 'a', balanceCents: 5_900_000 }, { accountId: 'b', balanceCents: 4_800_000 }] }, today)
+assert.equal(balanceComparison(completedOpening, newer, today).ready, true)
+assert.equal(completedOpening.funds, mixedDates.funds)
+assert.ok(mixedDates.accountSnapshots!.every(row => completedOpening.accountSnapshots!.includes(row)), 'filling a missing balance preserves all existing snapshots')
 const existingEnd = endOnly.accountSnapshots!.find(row => row.accountId === 'a')!
 const imported = applyRecordedBalances({ ...full, accountSnapshots: [{ ...existingEnd, balanceCents: 5_650_000 }] }, today, today)!
 assert.equal(imported.accountSnapshots?.length, 2)

@@ -1,7 +1,7 @@
 import { useMemo, useState } from 'react'
 import type { FormEvent, RefObject } from 'react'
 import type { AccountSettlement, Journal } from './model'
-import { balanceComparison, intervalAccounts, recordedBalanceOn, recordedIntervalGains, settlementExpense, unrecordedAccountBalances } from './account-ledger'
+import { balanceComparison, intervalAccounts, previousCheckIns, recordedBalanceOn, recordedIntervalGains, settlementExpense, unrecordedAccountBalances } from './account-ledger'
 import type { OpeningUpdate } from './account-ledger'
 import { calendarTime, shiftCalendarMonth } from './calendar-picker'
 import { exactYuan } from './finance'
@@ -16,26 +16,22 @@ export function SpendingReview({ journal, to, busy, save, saveOpening, importBal
   reviewHeading: RefObject<HTMLHeadingElement | null>; id: string; reviewAccounts: () => void
   importBalances: (date: string) => Promise<boolean>
 }) {
-  const snapshots = journal.accountSnapshots
-  const startDates = useMemo(() => {
-    const prior = new Map<string, number>()
-    for (const row of snapshots ?? []) if (row.date < to) prior.set(row.date, (prior.get(row.date) ?? 0) + 1)
-    return prior
-  }, [snapshots, to])
-  const dates = useMemo(() => [...startDates.keys()].sort().reverse(), [startDates])
+  const checkIns = useMemo(() => previousCheckIns(journal, to), [journal, to])
   const defaultStart = useMemo(() => {
     const saved = journal.accountSettlements?.filter(row => row.to === to).sort((a, b) => b.from.localeCompare(a.from))
     const minAccounts = intervalAccounts(journal, to, to).filter(a => a.active).length
-    const complete = (date: string) => (startDates.get(date) ?? 0) >= minAccounts && !balanceComparison(journal, date, to).missingOpening.length
-    return saved?.find(row => complete(row.from))?.from ?? dates.find(complete) ?? dates[0] ?? ''
-  }, [journal, to, startDates, dates])
+    const complete = ({ date, count }: { date: string; count: number }) => count >= minAccounts && !balanceComparison(journal, date, to).missingOpening.length
+    const savedStart = saved?.find(row => checkIns.some(option => option.date === row.from && complete(option)))?.from
+    return savedStart ?? checkIns.find(complete)?.date ?? checkIns[0]?.date ?? ''
+  }, [journal, to, checkIns])
   const [chosen, setChosen] = useState(''), [openingEditor, setOpeningEditor] = useState(false)
   const [importError, setImportError] = useState(false)
-  const from = chosen || defaultStart
+  const from = checkIns.some(option => option.date === chosen) ? chosen : defaultStart
   const comparison = balanceComparison(journal, from, to)
   const existing = journal.accountSettlements?.find(s => s.from === from && s.to === to)
-  const endRecorded = snapshots?.some(row => row.date === to)
-  const noAccounts = intervalAccounts(journal, from, to).length === 0
+  const endRecorded = comparison.coverage.some(a => !!a.closing)
+  const count = comparison.coverage.length
+  const noAccounts = count === 0
   const missingEnd = comparison.missingClosing.length > 0
   const eligible = missingEnd ? unrecordedAccountBalances(journal, to) : []
   const missingStart = !from || comparison.missingOpening.length > 0
@@ -43,12 +39,13 @@ export function SpendingReview({ journal, to, busy, save, saveOpening, importBal
   const lastSaved = [...(journal.accountSettlements ?? [])].sort((a,b) => b.to.localeCompare(a.to) || b.from.localeCompare(a.from))[0]
   return <section className="spending-review" aria-labelledby={id}>
     <header><div><span className="eyebrow">BETWEEN TWO CHECK-INS</span><h2 id={id} ref={reviewHeading} tabIndex={-1}>这段时间花了多少？</h2></div><span>期末 · {to}</span></header>
-    {!noAccounts && dates.length > 0 && <div className="spending-period"><label>期初<select value={from} onChange={e => { setChosen(e.target.value); setOpeningEditor(false) }}>{dates.map(date => <option key={date}>{date}</option>)}</select></label></div>}
+    {!noAccounts && checkIns.length > 0 && <div className="spending-period"><label>采用哪天的期初余额<select value={from} onChange={e => { setChosen(e.target.value); setOpeningEditor(false) }}>{checkIns.map(({ date, count }) => <option value={date} key={date}>{date} · 已记录 {count} 个账户</option>)}</select></label></div>}
     {noAccounts ? <p className="ledger-explain">先添加一个资金账户，再记录第一次余额。</p> : !comparison.ready ? <div className="spending-next" role="status">
-      <strong>{missingEnd ? '还差本次余额' : '本次余额已齐，还缺期初'}</strong>
-      {missingEnd ? <><p>{to} 缺少：{comparison.missingClosing.join('、')}。各账户需要核对同一天的余额。</p><div className="spending-actions"><button className="quiet-button" onClick={reviewAccounts}>去核对余额<Icon name="arrow" size={15} /></button>{eligible.length > 0 && <button className="quiet-button" disabled={busy} onClick={async () => { setImportError(false); if (!await importBalances(to)) setImportError(true) }}>带入 {eligible.length} 个账户当天的余额</button>}</div>{eligible.length > 0 && <p>可用资金安排里日期一致的余额：{eligible.map(a => `${a.name} ${amount(a.balanceCents)}`).join('、')}。</p>}{importError && <p className="form-error">余额未能带入，请重试。</p>}</> : <><p>{from ? `${from} 缺少：${comparison.missingOpening.join('、')}。` : '你刚保存的这组余额已记下，单靠这一次余额无法算出之前花了多少。'}手头有上次核对的余额，可以补录；没有的话，这组余额会作为下一次的起点。</p></>}
+      <strong>{missingEnd ? '还差本次余额' : from ? `已找到期初余额 · ${count - comparison.missingOpening.length} / ${count} 个账户` : '本次余额已齐，尚未找到更早的核对日'}</strong>
+      {missingEnd ? <><p>{to} 缺少：{comparison.missingClosing.join('、')}。各账户需要核对同一天的余额。</p><div className="spending-actions"><button className="quiet-button" onClick={reviewAccounts}>去核对余额<Icon name="arrow" size={15} /></button>{eligible.length > 0 && <button className="quiet-button" disabled={busy} onClick={async () => { setImportError(false); if (!await importBalances(to)) setImportError(true) }}>带入 {eligible.length} 个账户当天的余额</button>}</div>{eligible.length > 0 && <p>可用资金安排里日期一致的余额：{eligible.map(a => `${a.name} ${amount(a.balanceCents)}`).join('、')}。</p>}{importError && <p className="form-error">余额未能带入，请重试。</p>}</> : <p>{from ? `${from} 只需补齐：${comparison.missingOpening.join('、')}。其他余额会直接沿用。` : `本手账没有保存早于 ${to} 的账户核对。若前后都选了同一个余额日期，后一次会更正当天金额；请先核对保存日期。`}</p>}
     </div> : <SpendingForm key={`${from}/${to}`} from={from} to={to} opening={comparison.openingCents} closing={comparison.closingCents} gains={recordedIntervalGains(journal.funds, from, to)} existing={existing} busy={busy} save={save} />}
-    {!noAccounts && (endRecorded || dates.length > 0) && <button className={missingStart && !missingEnd ? 'quiet-button' : 'text-button'} aria-expanded={openingEditor} onClick={openBaseline}>{openingEditor ? '收起期初补录' : missingStart ? '补录期初余额' : '补录或更正期初余额'}<Icon name={openingEditor ? 'close' : 'edit'} size={15} /></button>}
+    {!noAccounts && (endRecorded || checkIns.length > 0) && <button className={missingStart && !missingEnd ? 'quiet-button' : 'text-button'} aria-expanded={openingEditor} onClick={openBaseline}>{openingEditor ? '收起期初补录' : missingStart && from ? '补齐缺少的期初账户' : missingStart ? '补录期初余额' : '补录或更正期初余额'}<Icon name={openingEditor ? 'close' : 'edit'} size={15} /></button>}
+    {checkIns.length > 0 && <details className="spending-formula balance-coverage"><summary>查看已保存的期初余额</summary><ul>{comparison.coverage.map(a => <li key={JSON.stringify(a.id)}><strong>{a.name}</strong><span>{a.opening ? `${a.opening.date} · ${amount(a.opening.balanceCents)} · 已采用` : a.previous ? `所选日缺记录 · 最近记过 ${a.previous.date}` : '所选日缺记录 · 未找到更早余额'}</span></li>)}</ul><p>可切换到上面其他核对日。不同日期的余额不会混作同一天。</p></details>}
     {openingEditor && <OpeningBalances journal={journal} from={from || shiftCalendarMonth(to, -1)} to={to} busy={busy} save={saveOpening} done={date => { setChosen(date); setOpeningEditor(false); reviewHeading.current?.focus() }} />}
     {!comparison.ready && lastSaved && <p className="fine-print">最近保存：{lastSaved.from} 至 {lastSaved.to} · 支出估算 {amount(settlementExpense(lastSaved))}。可在下方「以前核对的区间」查看。</p>}
   </section>
@@ -57,18 +54,18 @@ export function SpendingReview({ journal, to, busy, save, saveOpening, importBal
 function OpeningBalances({ journal, from, to, busy, save, done }: { journal: Journal; from: string; to: string; busy: boolean; save: (update: OpeningUpdate) => Promise<boolean>; done: (date: string) => void }) {
   const [date, setDate] = useState(from)
   const lastDay = new Date(calendarTime(to) - 86_400_000).toISOString().slice(0,10)
-  return <div className="opening-editor"><h3>补上上次的余额</h3><p>选择一个已知余额的日期，填写各账户当天总额。这里仅保存期初快照，刚更新的余额不会被覆盖。</p>
+  return <div className="opening-editor"><h3>补上上次的余额</h3><p>选择余额对应的日期。已有余额会直接带入，只需填写缺少的账户。</p>
     <CalendarField label="补录的期初日期" value={date} min="1900-01-01" max={lastDay} change={setDate} />
     <OpeningForm key={date} journal={journal} date={date} to={to} busy={busy} save={save} done={done} />
   </div>
 }
 
 function OpeningForm({ journal, date, to, busy, save, done }: { journal: Journal; date: string; to: string; busy: boolean; save: (update: OpeningUpdate) => Promise<boolean>; done: (date: string) => void }) {
-  const accounts = intervalAccounts(journal, date, to)
+  const { coverage: accounts } = balanceComparison(journal, date, to)
   const [values, setValues] = useState(() => new Map(accounts.map(a => {
-    const snapshot = journal.accountSnapshots?.find(row => row.accountId === a.id && row.date === date)
-    return [a.id, snapshot ? String(snapshot.balanceCents / 100) : '']
+    return [a.id, a.opening ? String(a.opening.balanceCents / 100) : '']
   })))
+  const [editing, setEditing] = useState(new Set<string | null>())
   const [pending, setPending] = useState(false), [error, setError] = useState('')
   const update = (id: string | null, value: string) => setValues(current => new Map(current).set(id, value))
   const submit = async (event: FormEvent) => {
@@ -82,8 +79,10 @@ function OpeningForm({ journal, date, to, busy, save, done }: { journal: Journal
   }
   return <form onSubmit={submit} noValidate>
     <div className="ledger-assets">{accounts.map(a => {
+      if (a.opening && !editing.has(a.id)) return <div className="opening-reused" key={JSON.stringify(a.id)}><span>{a.name} · 已有记录</span><strong>{amount(a.opening.balanceCents)}</strong><button type="button" className="text-button" onClick={() => setEditing(current => new Set(current).add(a.id))}>更正 {a.name} 的期初余额</button></div>
       const reference = recordedBalanceOn(journal, a.id, date)
       return <div key={JSON.stringify(a.id)}><label>{a.name}期初余额 / 元<input inputMode="decimal" value={values.get(a.id) ?? ''} onChange={e => update(a.id, e.target.value)} placeholder="实际余额" /></label>
+        {!a.opening && a.previous && <p className="fine-print">最近有 {a.previous.date} 的记录；此处请填 {date} 的实际余额。</p>}
         {reference !== null && <button type="button" className="text-button" onClick={() => update(a.id, String(reference / 100))}>带入当天资产记录 {amount(reference)}</button>}</div>
     })}</div>
     {error && <p role="alert" className="form-error">{error}</p>}
