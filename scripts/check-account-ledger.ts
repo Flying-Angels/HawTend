@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict'
 import { applyAccountUpdate, applyOpeningUpdate, applyRecordedBalances, balanceComparison, bookkeepingDue, bookkeepingDays, isAccountSettlements, isAccountSnapshots, latestCheckInDate, previousCheckIns, recordedBalanceOn, recordedIntervalGains, settlementExpense } from '../src/account-ledger.ts'
 import { homeTimelineDates } from '../src/timeline-range.ts'
+import { balanceHistory } from '../src/balance-history.ts'
 import { isJournal } from '../src/cloud/journal-validation.ts'
 import type { Fund, Journal } from '../src/model.ts'
 
@@ -77,3 +78,20 @@ assert.equal(imported.accountSnapshots?.find(row => row.accountId === 'a')?.bala
 assert.equal(imported.accountSnapshots?.find(row => row.accountId === 'b')?.balanceCents, 5_000_000)
 assert.equal(applyRecordedBalances({ ...initial, funds: [a, { ...b, startDate: today }] }, '2026-11-16', today), null, 'do not carry forward out-of-date balances')
 console.log('Account ledger checks passed: isolated writes, complete date boundaries, gain/debt handling, legacy compatibility, 25-day reminder, and rolling home dates')
+
+const chart = balanceHistory(mixedDates)
+assert.deepEqual(chart.points.map(point => point.date), [from, newer, today])
+assert.deepEqual(chart.points.map(point => point.totalCents), [10_000_000, null, 10_620_000], 'partial updates never appear as a falling total')
+assert.equal(chart.points[1].balances.get('b'), undefined, 'missing account dates are not filled with zero or a carried-forward amount')
+assert.deepEqual(chart.points[1].missing, ['银行乙'])
+assert.equal(balanceHistory(correction).points.at(-1)?.totalCents, 10_600_000, 'same-day corrections update the chart')
+assert.equal(balanceHistory({ ...initial, accountSnapshots: undefined }).points.length, 0, 'legacy asset values do not invent dated account check-ins')
+const closedHistory = balanceHistory({ ...archived, accountSnapshots: [
+  ...historical.accountSnapshots!,
+  { accountId: 'a', name: '银行甲', date: newer, balanceCents: 6_000_000 },
+  { accountId: 'b', name: '银行乙', date: newer, balanceCents: 0 },
+  { accountId: 'a', name: '银行甲', date: today, balanceCents: 6_100_000 },
+] })
+assert.deepEqual(closedHistory.points.map(point => point.totalCents), [10_000_000, 6_000_000, 6_100_000], 'an archived account stops contributing after its recorded zero balance')
+assert.equal(balanceHistory({ ...archived, accountSnapshots: [...historical.accountSnapshots!, { accountId: 'a', name: '银行甲', date: today, balanceCents: 6_100_000 }] }).points.at(-1)?.totalCents, null, 'a positive archived account cannot silently disappear from the total')
+console.log('Balance history checks passed: exact dates, complete totals, partial updates, archived accounts and old journals')

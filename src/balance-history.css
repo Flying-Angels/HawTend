@@ -1,0 +1,39 @@
+.balance-history { background: var(--surface); border: 1px solid var(--line); border-radius: 12px; padding: 24px; margin: 22px 0; }
+.balance-history-heading { display: flex; justify-content: space-between; align-items: flex-start; flex-wrap: wrap; gap: 14px; }
+.balance-history h2 { font: 23px/1.6 var(--serif); margin: 0; }
+.balance-history-heading p, .balance-history-empty p { color: var(--muted); font-size: 12px; line-height: 1.8; margin: 5px 0 0; }
+.balance-history-range { display: flex; flex-wrap: wrap; gap: 4px; }
+.balance-history-range button { min-height: 44px; padding: 7px 12px; border-radius: 6px; font-size: 12px; color: var(--muted); }
+.balance-history-range button[aria-pressed=true] { color: var(--accent); background: var(--hero); }
+.balance-history-summary { display: flex; justify-content: space-between; align-items: flex-end; flex-wrap: wrap; gap: 12px; margin: 24px 0 18px; }
+.balance-history-summary span { display: block; font-size: 11px; color: var(--muted); }
+.balance-history-summary strong { display: block; font: 36px/1.6 var(--number); color: var(--accent); overflow-wrap: anywhere; }
+.balance-history-summary b { display: block; font: 20px/1.8 var(--number); color: var(--accent); }
+.balance-history-summary b.balance-decrease { color: #a96d50; }
+.balance-history-body { display: grid; grid-template-columns: minmax(0,1fr) 265px; gap: 24px; align-items: start; }
+.balance-history-plot { min-width: 0; border-radius: 8px; touch-action: pan-y; cursor: crosshair; }
+.balance-history-plot svg { display: block; width: 100%; height: auto; }
+.balance-history-plot text { fill: var(--muted); font: 11px var(--number); }
+.balance-history-plot polyline { stroke-linejoin: round; stroke-linecap: round; }
+.balance-crosshair { opacity: .35; pointer-events: none; }
+.balance-history-detail { border-left: 1px solid var(--line); padding-left: 20px; font-size: 12px; min-width: 0; }
+.balance-history-detail label { display: grid; gap: 7px; color: var(--muted); }
+.balance-history-detail select { width: 100%; min-height: 44px; border: 1px solid var(--line); border-radius: 7px; padding: 8px 10px; color: var(--ink); background: var(--surface); font: 13px var(--number); }
+.balance-history-detail dl { max-height: 231px; overflow-y: auto; margin: 9px 0 0; scrollbar-width: thin; scrollbar-color: var(--accent) transparent; }
+.balance-history-detail dl > div { display: flex; flex-wrap: wrap; justify-content: space-between; gap: 4px 12px; padding: 7px 0; }
+.balance-history-detail dt { overflow-wrap: anywhere; color: var(--muted); }
+.balance-history-detail dd { margin: 0; color: var(--ink); font: 13px/1.6 var(--number); overflow-wrap: anywhere; }
+.balance-history-detail dt small { font-size: 10px; }
+.balance-history-detail .balance-detail-total { border-bottom: 1px solid var(--line); margin-bottom: 3px; }
+.balance-detail-total dt, .balance-history-detail .balance-detail-total dd { color: var(--accent); font-weight: 600; }
+.balance-history-detail i, .balance-history-legend i { display: inline-block; width: 15px; height: 2px; vertical-align: middle; background: var(--balance-color); margin-right: 7px; }
+.balance-detail-total i, .balance-history-legend .balance-total-swatch { height: 4px; background: var(--accent); }
+.balance-history-detail p { font-size: 11px; color: var(--muted); line-height: 1.8; }
+.balance-history-legend { display: flex; flex-wrap: wrap; align-items: center; gap: 0 12px; padding-top: 14px; }
+.balance-history-legend button, .balance-history-legend > span { font-size: 12px; color: var(--muted); min-height: 44px; display: inline-flex; align-items: center; padding: 6px 3px; }
+.balance-history-legend > span { color: var(--accent); font-weight: 600; }
+.balance-history-legend button[aria-pressed=false] { opacity: .45; text-decoration: line-through; }
+.balance-history-note { font-size: 11px; line-height: 1.9; color: var(--muted); margin: 10px 0 0; }
+.balance-history-empty { padding: 18px 0 4px; }
+@media (max-width: 1000px) { .balance-history-body { grid-template-columns: minmax(0,1fr); gap: 12px; }.balance-history-detail { border-left: 0; border-top: 1px solid var(--line); padding: 15px 0 0; }.balance-history-detail label { display: flex; align-items: center; flex-wrap: wrap; gap: 10px; }.balance-history-detail select { width: auto; }.balance-history-detail dl { max-height: 180px; } }
+@media (max-width: 760px) { .balance-history { padding: 16px; }.balance-history h2 { font-size: 21px; }.balance-history-summary strong { font-size: 29px; }.balance-history-summary { margin-top: 16px; }.balance-history-range button { padding: 7px 10px; } }
