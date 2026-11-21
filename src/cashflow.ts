@@ -8,10 +8,13 @@ import { isSalaryDeductions, MAX_SALARY_CENTS, salaryFromGross } from './income-
 const dayTime = (date: string) => Date.parse(`${date}T00:00:00Z`)
 const lastDay = (month: string) => new Date(dayTime(`${monthAt(monthIndex(month) + 1)}-01`) - 86400000).toISOString().slice(0, 10)
 const money = (value: unknown): value is number => typeof value === 'number' && Number.isSafeInteger(value) && value >= 0
+const year = (value: unknown): value is number => typeof value === 'number' && Number.isInteger(value) && value >= 1900 && value <= 2200
 export function isFinancialPlan(value: unknown): value is FinancialPlan {
   if (!value || typeof value !== 'object' || Array.isArray(value)) return false
   const row = value as Record<string, unknown>
   return money(row.monthlyExpenseCents) && typeof row.annualRate === 'number' && Number.isFinite(row.annualRate) && row.annualRate >= 0 && row.annualRate <= 30
+    && (row.retirementYear === undefined || year(row.retirementYear))
+    && (row.expenseThroughYear === undefined || year(row.expenseThroughYear))
     && (row.fundingSource === undefined || row.fundingSource === 'salary-only' || row.fundingSource === 'assets-and-salary')
     && (row.monthlyIncomeCents === undefined || money(row.monthlyIncomeCents))
     && (row.includeRedeemable === undefined || typeof row.includeRedeemable === 'boolean')
@@ -30,8 +33,9 @@ export function financialDefaults(journal: Journal, today: string): FinancialPla
 }
 export const salaryOnly = (plan: FinancialPlan) => plan.fundingSource !== 'assets-and-salary'
 
-export function planningHorizon(journal: Journal, today: string): string {
+export function planningHorizon(journal: Journal, today: string, plan?: FinancialPlan): string {
   const dates = journal.goals.filter(g => goalStatus(g) !== 'done' && g.date >= today && (g.budgetCents > 0 || (g.monthlyBudgetCents ?? 0) > 0)).map(g => g.date)
+  if (plan?.expenseThroughYear !== undefined && `${plan.expenseThroughYear}-12-31` >= today) dates.push(`${plan.expenseThroughYear}-12-31`)
   return dates.length ? dates.sort().at(-1)! : lastDay(monthAt(monthIndex(today) + 12))
 }
 
@@ -90,7 +94,8 @@ export function salaryTargetSummary(journal: Journal, plan: FinancialPlan, today
   })
   const onceCents = rows.reduce((sum, g) => sum + g.onceCents, 0), recurringCents = rows.reduce((sum, g) => sum + g.recurringCents, 0)
   const livingCents = events.filter(e => e.kind === 'expense' && !e.wish).reduce((sum, e) => sum + e.amount, 0)
-  return { required, rows, onceCents, recurringCents, livingCents, totalCents: onceCents + recurringCents + livingCents, salaryMonths: events.filter(e => e.kind === 'income').length, wishMonthlyCents: wished.incomeCents, bindingWishes: events.filter(e => e.kind === 'expense' && e.date === required.limitingDate && e.wish).map(e => e.wish!.title) }
+  const livingMonthlyCents = required.incomeCents === null || wished.incomeCents === null ? null : required.incomeCents - wished.incomeCents
+  return { required, rows, onceCents, recurringCents, livingCents, totalCents: onceCents + recurringCents + livingCents, salaryMonths: required.salaryMonths, wishMonthlyCents: wished.incomeCents, livingMonthlyCents, bindingWishes: events.filter(e => e.kind === 'expense' && e.date === required.limitingDate && e.wish).map(e => e.wish!.title) }
 }
 
 const growth = (plan: FinancialPlan, before: string, after: string) => (1 + plan.annualRate / 100) ** ((dayTime(after) - dayTime(before)) / 86400000 / 365)
@@ -99,17 +104,36 @@ const growth = (plan: FinancialPlan, before: string, after: string) => (1 + plan
 // lower bound; taking the greatest one prevents early deficits even when a
 // later deposit maturity would make the final balance positive.
 export function requiredIncome(journal: Journal, plan: FinancialPlan, today: string) {
-  const horizon = planningHorizon(journal, today), { opening, events, excluded } = schedule(journal, plan, today, horizon)
-  let a = opening, b = 0, previous = today, required = 0, shortfall = 0, limitingDate = horizon
+  const horizon = planningHorizon(journal, today, plan)
+  return solveIncome(plan, today, horizon, schedule(journal, plan, today, horizon))
+}
+
+function solveIncome(plan: FinancialPlan, today: string, horizon: string, { opening, events, excluded }: ReturnType<typeof schedule>) {
+  let a = opening, b = 0, previous = today, required = 0, shortfall = 0, limitingDate = horizon, salaryMonths = 0
   for (const event of events) {
     const factor = growth(plan, previous, event.date); a *= factor; b *= factor; previous = event.date
-    if (event.kind === 'income') b += 1
+    if (event.kind === 'income' && earnsSalary(plan, event.date)) { b += 1; salaryMonths++ }
     if (event.kind === 'maturity') a += event.amount
     if (event.kind === 'expense') a -= event.amount
     if (a < 0 && b === 0) shortfall = Math.max(shortfall, -a)
     if (b > 0 && -a / b > required) { required = -a / b; limitingDate = event.date }
   }
-  return { incomeCents: shortfall > .00001 ? null : Math.max(0, Math.ceil(required - 1e-8)), upfrontShortfallCents: Math.ceil(shortfall), horizon, limitingDate, openingCents: opening, excludedCents: excluded }
+  const salaryEnd = plan.retirementYear === undefined ? horizon : `${plan.retirementYear}-12-31` < horizon ? `${plan.retirementYear}-12-31` : horizon
+  return { incomeCents: shortfall > .00001 ? null : Math.max(0, Math.ceil(required - 1e-8)), upfrontShortfallCents: Math.ceil(shortfall), horizon, limitingDate, openingCents: opening, excludedCents: excluded, salaryMonths, salaryEnd }
+}
+
+const earnsSalary = (plan: FinancialPlan, date: string) => plan.retirementYear === undefined || Number(date.slice(0, 4)) <= plan.retirementYear
+
+export function retirementScenarios(journal: Journal, plan: FinancialPlan, today: string) {
+  const wagePlan: FinancialPlan = { ...plan, fundingSource: 'salary-only' }
+  const horizon = planningHorizon(journal, today, wagePlan)
+  const scheduled = schedule(journal, wagePlan, today, horizon)
+  const first = Number(today.slice(0, 4)), last = Number(horizon.slice(0, 4))
+  return Array.from({ length: Math.max(0, last - first + 1) }, (_, index) => {
+    const year = first + index
+    const result = solveIncome({ ...wagePlan, retirementYear: year }, today, horizon, scheduled)
+    return { year, incomeCents: result.incomeCents, salaryMonths: result.salaryMonths }
+  })
 }
 
 export function cashflowProjection(journal: Journal, plan: FinancialPlan, today: string, until: string) {
@@ -129,7 +153,7 @@ export function cashflowProjection(journal: Journal, plan: FinancialPlan, today:
     const interest = Math.max(0, balance) * (growth(plan, previous, event.date) - 1)
     row.interestCents += interest
     balance += interest; previous = event.date
-    if (event.kind === 'income') { balance += monthlyIncome; row.incomeCents += monthlyIncome }
+    if (event.kind === 'income' && earnsSalary(plan, event.date)) { balance += monthlyIncome; row.incomeCents += monthlyIncome }
     if (event.kind === 'maturity') { balance += event.amount; row.maturityCents += event.amount }
     if (event.kind === 'expense') {
       balance -= event.amount; row.expenseCents += event.amount

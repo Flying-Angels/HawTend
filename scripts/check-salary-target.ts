@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict'
 import type { Journal, FinancialPlan, Goal } from '../src/model.ts'
-import { salaryTargetSummary, requiredIncome, cashflowProjection, financialDefaults } from '../src/cashflow.ts'
+import { salaryTargetSummary, requiredIncome, cashflowProjection, financialDefaults, retirementScenarios, isFinancialPlan } from '../src/cashflow.ts'
 const today = '2026-10-12'
 const goal: Goal = { id: 'test-wish', title: '虚构旅行', date: '2027-10-31', category: 'travel', budgetCents: 6000000, allocatedCents: 0, progress: 0, status: 'wish', description: '' }
 const journal: Journal = { schemaVersion: 1, theme: 'paper', moments: [], goals: [goal], funds: [] }
@@ -31,3 +31,33 @@ assert.equal(requiredIncome({ ...assets, goals: [{ ...goal, date: '2026-10-20' }
 assert.equal(financialDefaults({ ...assets, financialPlan: { ...zeroRate, fundingSource: 'assets-and-salary' } }, today).fundingSource, 'salary-only')
 const copy = JSON.stringify(assets); salaryTargetSummary(assets, compound, today); assert.equal(JSON.stringify(assets), copy)
 console.log('Wish budgets reverse to monthly wages; existing assets and returns excluded; trace, timing and compounding checks passed')
+
+const earlyRetirement = { ...zeroRate, retirementYear: 2026 }
+const early = requiredIncome(journal, earlyRetirement, today)
+assert.equal(early.incomeCents, 4_800_000, 'two future wages fund the same twelve months of living costs and the 60,000 yuan wish')
+assert.equal(early.salaryMonths, 2)
+assert.equal(early.salaryEnd, '2026-12-31')
+assert.equal(early.horizon, '2027-10-31', 'retirement never truncates the expense budget')
+const retiredProjection = cashflowProjection(journal, earlyRetirement, today, '2028-12-31')
+assert.ok(retiredProjection.rows.filter(row => row.month > '2026-12').every(row => row.incomeCents === 0), 'wages stop in both the budget and the extended timeline')
+assert.equal(retiredProjection.rows.find(row => row.month === '2027-10')!.wishExpenseCents, 6_000_000)
+assert.ok(retiredProjection.rows.filter(row => row.date <= early.horizon).every(row => row.minimumCents >= 0))
+assert.equal(requiredIncome(assets, earlyRetirement, today).incomeCents, early.incomeCents)
+assert.equal(requiredIncome(journal, { ...earlyRetirement, expenseThroughYear: 2028 }, today).incomeCents, 6_900_000, 'an extended living-cost budget is funded before retirement')
+assert.equal(requiredIncome(journal, { ...zeroRate, expenseThroughYear: 2030 }, today).incomeCents, 800000, 'extra working years cannot delay an earlier wish payment')
+assert.equal(requiredIncome(journal, { ...earlyRetirement, retirementYear: 2025 }, today).incomeCents, null, 'no future wage cannot pay future costs')
+const scenarios = retirementScenarios(journal, compound, today)
+assert.equal(scenarios[0].incomeCents, requiredIncome(journal, { ...compound, retirementYear: 2026 }, today).incomeCents)
+assert.equal(scenarios.at(-1)!.incomeCents, target.incomeCents)
+assert.ok(scenarios.every((row, index) => index === 0 || row.incomeCents! <= scenarios[index - 1].incomeCents!), 'later retirement cannot require a larger fixed wage for the same budget')
+const retireSummary = salaryTargetSummary(journal, earlyRetirement, today)
+assert.equal(retireSummary.livingMonthlyCents, 1_800_000)
+assert.equal(retireSummary.wishMonthlyCents! + retireSummary.livingMonthlyCents!, early.incomeCents)
+const discount = (day: string) => 1.008 ** ((Date.parse(day) - Date.parse(today)) / 86400000 / 365)
+const pvWages = 1 / discount('2026-11-01') + 1 / discount('2026-12-01')
+const costDates = cashflowProjection(journal, compound, today, '2027-10-31').rows.filter(row => row.month > today.slice(0, 7)).map(row => row.month + '-01')
+const pvLiving = costDates.reduce((sum, day) => sum + 300000 / discount(day), 0)
+assert.equal(requiredIncome(journal, { ...compound, retirementYear: 2026 }, today).incomeCents, Math.ceil((pvLiving + 6000000 / discount(goal.date)) / pvWages), 'retirement salary agrees with independent discounted cash-flow calculation')
+for (const invalid of ['2040', NaN, 2201, 2030.5]) assert.equal(isFinancialPlan({ ...zeroRate, retirementYear: invalid }), false)
+assert.equal(isFinancialPlan({ ...earlyRetirement, expenseThroughYear: 2087 }), true)
+console.log('Retirement salary, persistent post-retirement costs, timeline cutoff, year comparison, discounted cash flow and legacy plan checks passed')

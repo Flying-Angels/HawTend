@@ -42,6 +42,8 @@ export interface AccountSettlement {
   gainCents: number; openingDebtCents: number; closingDebtCents: number
 }
 export interface FinancialPlan {
+  retirementYear?: number
+  expenseThroughYear?: number
   fundingSource?: 'salary-only' | 'assets-and-salary'
   monthlyExpenseCents: number
   annualRate: number
