@@ -28,8 +28,9 @@ function ValueHistory({ funds }: { funds: Fund[] }) {
   </section>
 }
 
-export function FundsPage({ journal, edit, update, saveAccounts, busy, planning }: {
+export function FundsPage({ journal, edit, update, saveAccounts, busy, planning, addAsset }: {
   journal: Journal; edit: (fund: Fund) => void; update: (fund: Fund) => void; saveAccounts: (accounts: AssetAccount[]) => Promise<boolean>; busy: boolean; planning: ReactNode
+  addAsset: (accountId?: string) => void
 }) {
   const today = useToday(), accounts = journal.accounts ?? []
   const [filter, setFilter] = useState<string | null>(null), [manage, setManage] = useState(false)
@@ -44,10 +45,10 @@ export function FundsPage({ journal, edit, update, saveAccounts, busy, planning 
     {planning}
     <div className="fund-summary"><div><span>记录的总资产</span><strong>¥{exactYuan(total)}</strong><p>各资产最近一次记录，余额日期可能不同</p></div><div><span>可用于规划</span><strong>¥{exactYuan(available)}</strong><p>其中可赎回基金 ¥{exactYuan(redeemable)}<br/>不代表全部能即时到账</p></div><div><span>暂不可用</span><strong>¥{exactYuan(locked)}</strong><p>尚未到期或暂不可赎回的资产</p></div></div>
     <div className="section-heading"><div><span className="eyebrow">A PLACE FOR EVERY PART</span><h2>我的资金账户</h2></div><button className="quiet-button" aria-expanded={manage} onClick={() => setManage(!manage)}><Icon name="settings" size={15}/>管理账户</button></div>
-    {manage && <AssetAccounts journal={journal} busy={busy} save={saveAccounts} />}
+    {manage && <AssetAccounts journal={journal} busy={busy} save={saveAccounts} addAsset={addAsset} editAsset={edit} />}
     <div className="account-grid" role="group" aria-label="按资金账户筛选"><button className="account-card all-accounts" aria-pressed={filter === null} onClick={() => setFilter(null)}><Icon name="wallet" size={20}/><span>全部账户</span><strong>¥{exactYuan(total)}</strong><small>{funds.length} 项资产</small></button>{accounts.map(a => <button key={a.id} className="account-card" aria-pressed={filter === a.id} onClick={() => setFilter(filter === a.id ? null : a.id)}><Icon name={a.kind === 'bank' ? 'home' : 'wallet'} size={20}/><span>{a.name}</span><strong>¥{exactYuan(accountBalance(funds, a.id))}</strong><small>{accountKinds[a.kind]} · {funds.filter(f => f.accountId === a.id).length} 项资产</small></button>)}{funds.some(f => !f.accountId) && <button className="account-card unassigned-account" aria-pressed={filter === ''} onClick={() => setFilter(filter === '' ? null : '')}><Icon name="book" size={20}/><span>暂未归到账户</span><strong>¥{exactYuan(accountBalance(funds))}</strong><small>旧记录保留，可以逐项选择账户</small></button>}</div>
     {!accounts.length && <p className="account-empty-hint">先在“管理账户”添加支付宝、微信或银行，再把资产放进对应账户。账户不会再记一份额外余额。</p>}
-    <div className="section-heading"><div><span className="eyebrow">MONEY, WITH A PURPOSE</span><h2>{filter === null ? '我的资产明细' : filter === '' ? '尚未归类的资产' : `${accounts.find(a => a.id === filter)?.name ?? '账户'}的资产`}</h2></div><span className="subtle">现金、存款与基金，分别照料</span></div>
+    <div className="section-heading"><div><span className="eyebrow">MONEY, WITH A PURPOSE</span><h2>{filter === null ? '我的资产明细' : filter === '' ? '尚未归类的资产' : `${accounts.find(a => a.id === filter)?.name ?? '账户'}的资产`}</h2></div>{filter === null ? <span className="subtle">现金、存款与基金，分别照料</span> : <button className="quiet-button" disabled={busy} onClick={() => addAsset(filter || undefined)}><Icon name="plus" size={15} />添加项目</button>}</div>
     <div className="asset-list">{visible.map(f => {
       const account = accounts.find(a => a.id === f.accountId)
       const latest = f.valuations?.at(-1), gain = latest ? periodGain(f, latest) : null

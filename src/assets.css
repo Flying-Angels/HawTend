@@ -34,8 +34,21 @@
 .asset-account-manager .section-heading { margin-bottom: 10px; }
 .asset-account-manager h3 { font: 19px/1.7 var(--serif); }
 .asset-account-manager p { font-size: 11px; line-height: 1.9; color: var(--muted); }
-.asset-account-list > div { display: flex; align-items: center; gap: 12px; padding: 12px 0; border-bottom: 1px solid var(--line); }
-.asset-account-list > div > span { flex: 1; min-width: 0; }
+.managed-account { padding: 12px 0; border-bottom: 1px solid var(--line); }
+.managed-account-heading { display: flex; align-items: center; justify-content: space-between; gap: 14px; }
+.managed-account-toggle, .managed-account-summary { display: flex; flex: 1; align-items: center; gap: 12px; min-width: 0; min-height: 44px; padding: 4px 0; text-align: left; }
+.managed-account-toggle > span, .managed-account-summary > span { flex: 1; min-width: 0; }
+.managed-account-toggle > svg, .managed-account-summary > svg { flex-shrink: 0; }
+.managed-account-toggle > svg:last-child { color: var(--muted); }.managed-account-toggle > svg.expanded { transform: rotate(90deg); }
+.managed-account-actions { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 14px; }
+.managed-account-actions .quiet-button { min-height: 44px; font-size: 12px; padding: 7px 12px; }
+.managed-account-assets { margin: 12px 0 0 31px; padding: 3px 14px; background: var(--surface); border: 1px solid var(--line); border-radius: 8px; }
+.managed-account-assets ul { list-style: none; padding: 0; margin: 0; }.managed-account-assets li + li { border-top: 1px solid var(--line); }
+.managed-asset { width: 100%; display: grid; grid-template-columns: 22px minmax(0,1fr) auto 14px; align-items: center; gap: 10px; text-align: left; min-height: 60px; padding: 12px 0; }
+.managed-asset > span { min-width: 0; }.managed-asset > svg { color: var(--muted); }
+.managed-asset b { font: 17px/1.7 var(--number); overflow-wrap: anywhere; }
+.managed-account-toggle:hover strong, .managed-asset:hover strong { color: var(--accent); }
+.managed-account-empty { margin: 9px 0; }
 .asset-account-list strong { display: block; font-size: 13px; font-weight: 400; overflow-wrap: anywhere; }
 .asset-account-list small { display: block; color: var(--muted); font-size: 10px; margin-top: 5px; }
 .asset-account-list .text-button { font-size: 11px; min-height: 40px; }
@@ -109,7 +122,10 @@
   .asset-update .text-button { min-height: 44px; margin-left: auto; }
   .asset-account-manager { padding: 17px; }
   .asset-account-manager .section-heading { flex-wrap: wrap; }
-  .asset-account-list > div { gap: 8px; }
+  .managed-account-heading { flex-wrap: wrap; gap: 8px; }.managed-account-toggle, .managed-account-summary { flex-basis: 100%; }
+  .managed-account-actions { gap: 4px 14px; }.managed-account-assets { margin-left: 0; padding: 3px 10px; }
+  .managed-asset { grid-template-columns: 22px minmax(0,1fr) 14px; gap: 6px 8px; }
+  .managed-asset > span { grid-column: 2; }.managed-asset > svg:last-child { grid-column: 3; grid-row: 1; }.managed-asset b { grid-column: 2 / 4; grid-row: 2; }
   .asset-account-list .text-button { min-height: 44px; }
   .account-inline-editor { padding: 14px; }
   .account-inline-editor .form-grid { grid-template-columns: 1fr; gap: 0; }

@@ -1,15 +1,18 @@
 import { useId, useState } from 'react'
-import type { AssetAccount, Journal } from './model'
-import { accountKinds, isAssetAccounts } from './assets'
+import type { AssetAccount, Fund, Journal } from './model'
+import { accountBalance, accountKinds, assetType, assetTypes, isAssetAccounts } from './assets'
+import { exactYuan } from './finance'
 import { Icon } from './Icons'
 
-export function AssetAccounts({ journal, busy, save, created }: {
+export function AssetAccounts({ journal, busy, save, created, addAsset, editAsset }: {
   journal: Journal; busy: boolean; save: (accounts: AssetAccount[]) => Promise<boolean>; created?: (id: string) => void
+  addAsset?: (accountId: string) => void; editAsset?: (asset: Fund) => void
 }) {
   const accounts = journal.accounts ?? []
   const [editing, setEditing] = useState<string | null>(null)
   const [name, setName] = useState(''), [kind, setKind] = useState<AssetAccount['kind']>('payment')
   const [error, setError] = useState(''), [pending, setPending] = useState(false)
+  const [expanded, setExpanded] = useState<string | null>(null)
   const nameId = useId(), kindId = useId()
   const start = (account?: AssetAccount, suggestion?: string) => { setEditing(account?.id ?? 'new'); setName(account?.name ?? suggestion ?? ''); setKind(account?.kind ?? (suggestion?.includes('银行') ? 'bank' : 'payment')); setError('') }
   const submit = async () => {
@@ -19,15 +22,38 @@ export function AssetAccounts({ journal, busy, save, created }: {
     setPending(true)
     const ok = await save(next)
     setPending(false)
-    if (ok) { setEditing(null); setError(''); if (editing === 'new') created?.(account.id) }
+    if (ok) { setEditing(null); setError(''); if (editing === 'new') { setExpanded(account.id); created?.(account.id) } }
     else setError('账户未保存，填写内容仍在这里，请重试。')
   }
   return <section className="asset-account-manager" aria-label="管理资金账户">
-    <div className="section-heading"><div><h3>钱放在哪里，由你设置。</h3><p>账户名称可以是平台、银行或一张具体的卡。</p></div><button type="button" className="quiet-button" disabled={busy || pending} onClick={() => start()}><Icon name="plus" size={15} />添加账户</button></div>
+    <div className="section-heading"><div><h3>钱放在哪里，由你设置。</h3><p>{addAsset ? '展开账户查看项目，现金、存款和基金都可以在这里添加。' : '账户名称可以是平台、银行或一张具体的卡。'}</p></div><button type="button" className="quiet-button" disabled={busy || pending} onClick={() => start()}><Icon name="plus" size={15} />添加账户</button></div>
     {!accounts.length && editing === null && <div className="account-suggestions"><span>从常用的一个开始</span>{['支付宝', '微信', '招商银行'].map(s => <button type="button" className="filter-chip" key={s} onClick={() => start(undefined, s)}>{s}<Icon name="plus" size={12} /></button>)}</div>}
     <div className="asset-account-list">{accounts.map(account => {
-      const count = journal.funds.filter(f => f.accountId === account.id).length
-      return <div key={account.id}><Icon name={account.kind === 'bank' ? 'home' : 'wallet'} size={17} /><span><strong>{account.name}</strong><small>{accountKinds[account.kind]} · {count} 项资产</small></span><button type="button" className="text-button" disabled={busy || pending} onClick={() => start(account)}>编辑</button><button type="button" className="text-button" disabled={busy || pending || count > 0} title={count ? '请先将资产移到其他账户，再删除账户。' : '删除这个空账户，可撤销。'} onClick={async () => { setPending(true); const ok = await save(accounts.filter(a => a.id !== account.id)); setPending(false); if (!ok) setError('删除未完成，请重试。') }}>删除</button></div>
+      const assets = journal.funds.filter(f => f.accountId === account.id)
+      const count = assets.length, open = expanded === account.id
+      const detailsId = `${nameId}-${account.id}-assets`
+      const summary = <><Icon name={account.kind === 'bank' ? 'home' : 'wallet'} size={19} /><span><strong>{account.name}</strong><small>{accountKinds[account.kind]} · {count} 项资产 · ¥{exactYuan(accountBalance(journal.funds, account.id))}</small></span></>
+      return <article className="managed-account" key={account.id} aria-label={`${account.name}账户`}>
+        <div className="managed-account-heading">
+          {editAsset ? <button type="button" className="managed-account-toggle" aria-expanded={open} aria-controls={detailsId} onClick={() => setExpanded(open ? null : account.id)}>
+            {summary}<Icon name="chevron" size={15} className={open ? 'expanded' : ''} />
+          </button> : <div className="managed-account-summary">{summary}</div>}
+          <div className="managed-account-actions">
+            {addAsset && <button type="button" className="quiet-button" disabled={busy || pending} aria-label={`在${account.name}添加项目`} onClick={() => { setExpanded(account.id); addAsset(account.id) }}><Icon name="plus" size={14} />添加项目</button>}
+            <button type="button" className="text-button" disabled={busy || pending} onClick={() => start(account)}>编辑账户</button>
+            <button type="button" className="text-button" disabled={busy || pending || count > 0} title={count ? '请先将资产移到其他账户，再删除账户。' : '删除这个空账户，可撤销。'} onClick={async () => { setPending(true); const ok = await save(accounts.filter(a => a.id !== account.id)); setPending(false); if (!ok) setError('删除未完成，请重试。') }}>删除</button>
+          </div>
+        </div>
+        {editAsset && open && <div className="managed-account-assets" id={detailsId}>
+          {assets.length ? <ul>{assets.map(asset => <li key={asset.id}>
+            <button type="button" className="managed-asset" disabled={busy || pending} aria-label={`编辑资产 ${asset.name}`} onClick={() => editAsset(asset)}>
+              <Icon name={assetType(asset) === 'fund' ? 'sprout' : 'wallet'} size={18} />
+              <span><strong>{asset.name}</strong><small>{assetTypes[assetType(asset)]} · {asset.startDate.replaceAll('-', '.')}</small></span>
+              <b>¥{exactYuan(asset.principalCents)}</b><Icon name="chevron" size={14} />
+            </button>
+          </li>)}</ul> : <p className="managed-account-empty">这个账户还没有项目，点击「添加项目」记下现金、存款或基金。</p>}
+        </div>}
+      </article>
     })}</div>
     {editing !== null && <div className="account-inline-editor" role="group" aria-label="账户资料" onKeyDown={e => { if (e.key === 'Enter') { e.preventDefault(); if (!pending && !busy) void submit() } }}>
       <div className="form-grid"><label htmlFor={nameId}>账户名称<input id={nameId} value={name} maxLength={40} placeholder="例如，招商银行储蓄卡" onChange={e => setName(e.target.value)} /></label><label htmlFor={kindId}>账户类型<select id={kindId} value={kind} onChange={e => setKind(e.target.value as AssetAccount['kind'])}>{Object.entries(accountKinds).map(([value, label]) => <option key={value} value={value}>{label}</option>)}</select></label></div>
