@@ -1,5 +1,4 @@
 import { useEffect, useState } from 'react'
-import type { ReactNode } from 'react'
 import type { AssetAccount, Fund, Journal } from './model'
 import { accountBalance, accountKinds, assetType, assetTypes, availableForPlanning, manualValue, periodGain } from './assets'
 import { exactYuan } from './finance'
@@ -28,8 +27,8 @@ function ValueHistory({ funds }: { funds: Fund[] }) {
   </section>
 }
 
-export function FundsPage({ journal, edit, update, saveAccounts, busy, planning, addAsset }: {
-  journal: Journal; edit: (fund: Fund) => void; update: (fund: Fund) => void; saveAccounts: (accounts: AssetAccount[]) => Promise<boolean>; busy: boolean; planning: ReactNode
+export function FundsPage({ journal, edit, update, saveAccounts, busy, addAsset }: {
+  journal: Journal; edit: (fund: Fund) => void; update: (fund: Fund) => void; saveAccounts: (accounts: AssetAccount[]) => Promise<boolean>; busy: boolean
   addAsset: (accountId?: string) => void
 }) {
   const today = useToday(), accounts = journal.accounts ?? []
@@ -42,8 +41,7 @@ export function FundsPage({ journal, edit, update, saveAccounts, busy, planning,
   const visible = funds.filter(f => filter === null || (f.accountId ?? '') === filter)
   const manual = visible.filter(manualValue)
   return <section className="funds-page">
-    {planning}
-    <div className="fund-summary"><div><span>记录的总资产</span><strong>¥{exactYuan(total)}</strong><p>各资产最近一次记录，余额日期可能不同</p></div><div><span>可用于规划</span><strong>¥{exactYuan(available)}</strong><p>其中可赎回基金 ¥{exactYuan(redeemable)}<br/>不代表全部能即时到账</p></div><div><span>暂不可用</span><strong>¥{exactYuan(locked)}</strong><p>尚未到期或暂不可赎回的资产</p></div></div>
+    <div className="fund-summary"><div><span>记录的总资产</span><strong>¥{exactYuan(total)}</strong><p>各资产最近一次记录，余额日期可能不同</p></div><div><span>可使用或赎回</span><strong>¥{exactYuan(available)}</strong><p>其中可赎回基金 ¥{exactYuan(redeemable)}<br/>不代表全部能即时到账</p></div><div><span>暂不可用</span><strong>¥{exactYuan(locked)}</strong><p>尚未到期或暂不可赎回的资产</p></div></div>
     <div className="section-heading"><div><span className="eyebrow">A PLACE FOR EVERY PART</span><h2>我的资金账户</h2></div><button className="quiet-button" aria-expanded={manage} onClick={() => setManage(!manage)}><Icon name="settings" size={15}/>管理账户</button></div>
     {manage && <AssetAccounts journal={journal} busy={busy} save={saveAccounts} addAsset={addAsset} editAsset={edit} />}
     <div className="account-grid" role="group" aria-label="按资金账户筛选"><button className="account-card all-accounts" aria-pressed={filter === null} onClick={() => setFilter(null)}><Icon name="wallet" size={20}/><span>全部账户</span><strong>¥{exactYuan(total)}</strong><small>{funds.length} 项资产</small></button>{accounts.map(a => <button key={a.id} className="account-card" aria-pressed={filter === a.id} onClick={() => setFilter(filter === a.id ? null : a.id)}><Icon name={a.kind === 'bank' ? 'home' : 'wallet'} size={20}/><span>{a.name}</span><strong>¥{exactYuan(accountBalance(funds, a.id))}</strong><small>{accountKinds[a.kind]} · {funds.filter(f => f.accountId === a.id).length} 项资产</small></button>)}{funds.some(f => !f.accountId) && <button className="account-card unassigned-account" aria-pressed={filter === ''} onClick={() => setFilter(filter === '' ? null : '')}><Icon name="book" size={20}/><span>暂未归到账户</span><strong>¥{exactYuan(accountBalance(funds))}</strong><small>旧记录保留，可以逐项选择账户</small></button>}</div>
@@ -55,8 +53,7 @@ export function FundsPage({ journal, edit, update, saveAccounts, busy, planning,
       const ready = availableForPlanning(f, today)
       return <article key={f.id} className="asset-item"><button className="asset-main" disabled={busy} onClick={() => edit(f)}><span className={`fund-icon ${ready ? 'liquid' : ''}`}><Icon name={assetType(f) === 'fund' ? 'sprout' : ready ? 'wallet' : 'lock'} size={23}/></span><span className="asset-copy"><strong>{f.name}</strong><span>{assetTypes[assetType(f)]}<i>·</i>{account?.name ?? '暂未归到账户'}<i>·</i>{ready ? assetType(f) === 'fund' ? '可赎回' : '可使用' : `${f.maturityDate.replaceAll('-', '.')} 到期`}</span></span><span className="asset-return">{manualValue(f) ? <><strong className="manual-label">手动市值</strong><small>不按固定年化推算</small></> : <><strong>{f.rate.toFixed(2)}<small>%</small></strong><small>{f.mode === 'compound' ? '复利' : '单利'} · 年化假设</small></>}</span><span className="asset-value"><strong>¥{exactYuan(f.principalCents)}</strong><small>{f.startDate.replaceAll('-', '.')} {manualValue(f) ? '市值' : '余额'}</small></span><Icon name="chevron" size={16}/></button>{manualValue(f) && <div className="asset-update"><span>{gain === null ? '下一次更新，开始记录它的变化。' : <>最近期间盈亏 <strong className={gain < 0 ? 'negative' : ''}>{gain > 0 ? '+' : ''}¥{exactYuan(gain)}</strong></>}</span><button className="text-button" disabled={busy} onClick={() => update(f)}><Icon name="edit" size={14}/>更新市值 / 盈亏</button></div>}</article>
     })}</div>
-    {!visible.length && <div className="blank-card"><Icon name="wallet" size={29}/><h2>{funds.length ? '这个账户还没有资产。' : '给手里的钱，一个清楚的位置。'}</h2><p>点击“添加资金”，选择账户、类别与更新方式。</p></div>}
+    {!visible.length && <div className="blank-card"><Icon name="wallet" size={29}/><h2>{funds.length ? '这个账户还没有资产。' : '给手里的钱，一个清楚的位置。'}</h2><p>点击“添加项目”，选择账户、类别与更新方式。</p></div>}
     {manual.length > 0 && <details className="asset-history-disclosure"><summary>查看投资市值历史</summary><ValueHistory funds={manual} /></details>}
-    <div className="notice financial-note"><Icon name="leaf" size={20}/><span>月薪反推只用未来工资承担愿望与日常开销。这里的账户、资产与实际账单独立记录，试算不会改动它们。</span></div>
   </section>
 }

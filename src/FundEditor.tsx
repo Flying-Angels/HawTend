@@ -49,8 +49,8 @@ export function FundEditor({ item, fresh, journal, save, saveAccounts, update, b
     <label>资金可用性<select value={draft.liquid ? 'liquid' : 'locked'} onChange={e => setDraft({ ...draft, liquid: e.target.value === 'liquid' })}><option value="liquid">{draft.assetType === 'fund' ? '可赎回 · 不锁定到期日' : '可使用 · 不锁定到期日'}</option><option value="locked">锁定 · 到期可用</option></select></label>
     {!draft.liquid && <CalendarField label="到期日期" min={draft.valuationBase?.date ?? draft.startDate} value={draft.maturityDate} change={date => setDraft({ ...draft, maturityDate: date })} />}
     {!isManual && validAssetDate(draft.startDate) && validAssetDate(previewDate) && <div className="forecast-box"><span className="eyebrow">{draft.liquid ? '一年后预计余额' : '到期预计余额'}</span><div className="forecast-number"><small>¥</small>{exactYuan(futureValue({ ...draft, principalCents: cents(amount || 0) }, previewDate))}</div><p>按固定年化假设计算，不代表实际到账；到期后默认零收益。</p></div>}
-    <p className="fine-print">账户现金只记录闲置部分，基金等资产另列，账户会自动合计。可赎回资产计入规划池，到账时间按实际产品处理。</p>
-    {error && <p className="form-error" role="alert">{error}</p>}<div className="editor-footer"><span>本机保存 · 可撤销</span><button className="primary-button" disabled={busy || pending} type="submit">{pending ? '正在保存…' : '保存资金安排'}<Icon name="check" size={15} /></button></div>
+    <p className="fine-print">账户现金只记录闲置部分，基金等资产另列，账户会自动合计。可赎回资产的到账时间按实际产品处理。</p>
+    {error && <p className="form-error" role="alert">{error}</p>}<div className="editor-footer"><span>本机保存 · 可撤销</span><button className="primary-button" disabled={busy || pending} type="submit">{pending ? '正在保存…' : '保存资产项目'}<Icon name="check" size={15} /></button></div>
   </form>
 }
 

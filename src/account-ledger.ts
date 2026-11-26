@@ -58,7 +58,7 @@ function updateAsset(fund: Fund, entry: BalanceEdit, day: string): Fund {
     return recordValuation(fund, { date: day, valueCents: entry.balanceCents, netFlowCents: entry.netFlowCents, cashIncomeCents: entry.distributionCents, note: same?.note ?? '' })
   }
   if (entry.balanceCents === fund.principalCents) return fund
-  if (!fund.liquid && day >= fund.maturityDate) throw new Error(`「${fund.name}」已到期。请在资金安排中处理这项存款，或只记录当天总额。`)
+  if (!fund.liquid && day >= fund.maturityDate) throw new Error(`「${fund.name}」已到期。请在账户资产中处理这项存款，或只记录当天总额。`)
   return { ...fund, principalCents: entry.balanceCents, startDate: day }
 }
 

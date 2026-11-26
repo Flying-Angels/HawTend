@@ -41,7 +41,13 @@ import type { MomentDraft } from './moment-drafts'
 import { MomentDraftList } from './MomentDrafts'
 
 const dateLabel = (date: string) => date.replaceAll('-', '.')
-const navItems = [{ id: 'home', label: '我的手账', short: '手账', icon: 'home' }, { id: 'timeline', label: '人生时间轴', short: '时间轴', icon: 'timeline' }, { id: 'goals', label: '心愿与目标', short: '心愿', icon: 'flag' }, { id: 'funds', label: '资金安排', short: '资金', icon: 'wallet' }] as const
+const navItems = [
+  { id: 'home', label: '我的手账', short: '手账', icon: 'home' },
+  { id: 'timeline', label: '人生时间轴', short: '时间轴', icon: 'timeline' },
+  { id: 'goals', label: '心愿与目标', short: '心愿', icon: 'flag' },
+  { id: 'funds', label: '账户与记账', short: '账户', icon: 'wallet' },
+  { id: 'planning', label: '未来规划', short: '规划', icon: 'sprout' },
+] as const
 type Page = typeof navItems[number]['id']
 type Panel = { type: 'moment'; item: Moment; fresh?: boolean; draft?: MomentDraft } | { type: 'goal'; item: Goal; fresh?: boolean } | { type: 'fund'; item: Fund; fresh?: boolean } | { type: 'valuation'; item: Fund } | { type: 'settings' } | { type: 'new' } | { type: 'drafts' } | { type: 'bookkeeping-reminder' }
   | { type: 'cluster'; items: { kind: 'moment' | 'goal'; item: Moment | Goal }[] }
@@ -261,7 +267,7 @@ export default function App() {
   const [plan, setPlan] = useState<FinancialPlan>(() => financialDefaults(journal, today))
   useEffect(() => { setPlan(financialDefaults(journal, today)) }, [journal.financialPlan, journal.monthlySummaries, sampleMode, today])
   const projection = useMemo(() => cashflowProjection(journal, plan, today, new Date(timelineBounds(sharedRange).end - 86400000).toISOString().slice(0, 10)), [journal, plan, today, sharedRange])
-  const [fundsView, setFundsView] = useState<'ledger' | 'monthly' | 'funds'>('ledger')
+  const [accountView, setAccountView] = useState<'ledger' | 'monthly' | 'assets'>('ledger')
   const [ledgerLaunch, setLedgerLaunch] = useState<{ date: string; count: number }>()
   const [panel, setPanel] = useState<Panel | null>(null)
   const [status, setStatus] = useState<Status>('loading')
@@ -381,7 +387,7 @@ export default function App() {
   const latest = [...journal.moments].sort((a, b) => b.date.localeCompare(a.date))[0]
   const disabled = status === 'loading' || status === 'saving' || loadError.current
   const openFinancialTimeline = () => { setFinancialVisible(true); navigate('timeline') }
-  const editIncomePlanning = () => { setFundsView('funds'); navigate('funds') }
+  const editIncomePlanning = () => navigate('planning')
   const planning: PlanningProps = { journal, plan, update: setPlan, save: savePlan, result: projection, busy: disabled, sample: sampleMode, today }
   const isBlank = !journal.moments.length && !journal.goals.length && !journal.funds.length && !journal.monthlySummaries?.length && !journal.accounts?.length && !journal.accountSnapshots?.length && !journal.accountSettlements?.length
   return <CategoryProvider journal={journal} busy={disabled} save={saveCategories}><div className="app-shell">
@@ -403,7 +409,40 @@ export default function App() {
       </>}
       {page === 'timeline' && <><div className="page-heading"><span className="eyebrow">PAST, PRESENT & POSSIBILITY</span><h1>日子连起来，就是人生。</h1><p>已发生的大事与未来的心愿，在这里相遇。</p></div><Timeline journal={journal} open={setPanel} range={sharedRange} setRange={setSharedRange} financial={financialVisible} toggleFinancial={setFinancialVisible} planning={planning} editPlanning={editIncomePlanning} /><div className="timeline-bottom-note"><Icon name="book" size={25} /><div><strong>事情有大小，感受没有。</strong><p>分类颜色帮你找到同类的日子；重要程度用星标、大小与文字一起区分。</p></div><button className="quiet-button" onClick={newMoment} disabled={disabled}><Icon name="plus" size={17} />记录一个日子</button></div></>}
       {page === 'goals' && <><div className="page-heading with-action"><div><span className="eyebrow">MAKE ROOM FOR WHAT MATTERS</span><h1>心愿有了位置，<br className="mobile-only" />未来就有了方向。</h1><p>给想做的事一点时间，也一点认真。</p></div><button className="primary-button" onClick={newGoal} disabled={disabled}><Icon name="plus" size={17} />添加心愿</button></div><div className="goal-grid">{journal.goals.map(g => <div key={g.id} className="goal-tile"><CategoryTag category={g.category} /><GoalCard goal={g} open={setPanel} /><p>{g.description}</p><button className="text-button" onClick={() => setPanel({ type: 'goal', item: g })}>看看如何靠近它<Icon name="arrow" size={16} /></button></div>)}</div>{!journal.goals.length && <section className="blank-card"><Icon name="flag" size={32} /><h2>把第一份期待，写在这里。</h2><p>不必一次想好整个人生，先给一件想做的事留个位置。</p><button className="quiet-button" disabled={disabled} onClick={newGoal}>添加第一个心愿<Icon name="plus" size={16} /></button></section>}<div className="gentle-banner"><Icon name="sprout" size={28} /><p>计划可以调整。<br /><span>一次性费用、每月投入，都可以随着生活调整。</span></p></div></>}
-      {page === 'funds' && <><div className="page-heading with-action"><div><span className="eyebrow">A LITTLE PEACE OF MIND</span><h1>为想要的生活，<br className="mobile-only" />留一份底气。</h1><p>核对这一段的花费，也安排慢慢长大的积蓄。</p></div>{fundsView === "funds" && <button className="primary-button" onClick={() => newFund()} disabled={disabled}><Icon name="plus" size={17} />添加资金</button>}</div><div className="funds-tabs" role="group" aria-label="收支与资金视图"><button aria-pressed={fundsView !== "funds"} onClick={() => setFundsView("ledger")}><Icon name="book" size={17} />账户记账</button><button aria-pressed={fundsView === "funds"} onClick={() => setFundsView("funds")}><Icon name="wallet" size={17} />资金安排</button></div><BalanceHistory journal={journal} />{fundsView === "ledger" ? <AccountLedger key={ledgerLaunch?.count} journal={journal} today={today} startDate={ledgerLaunch?.date} busy={disabled} saveBalance={saveBalance} saveOpening={saveOpening} importBalances={importBalances} saveSettlement={saveSettlement} saveAccounts={saveAccounts} addAsset={newFund} editAsset={item => setPanel({ type: "fund", item })} openMonthly={() => setFundsView("monthly")} /> : fundsView === "monthly" ? <MonthlyLedger summaries={journal.monthlySummaries ?? []} save={saveMonthly} remove={removeMonthly} busy={disabled} sample={sampleMode} uninvested={newCashFund} back={() => setFundsView("ledger")} /> : <FundsPage journal={journal} addAsset={newFund} edit={item => setPanel({ type: "fund", item })} update={item => setPanel({ type: "valuation", item })} saveAccounts={saveAccounts} busy={disabled} planning={<IncomePlanning {...planning} openTimeline={openFinancialTimeline} />} />}</>}
+      {page === 'funds' && <>
+        <div className="page-heading with-action">
+          <h1>账户与记账</h1>
+          {accountView === 'assets' && <button className="primary-button" onClick={() => newFund()} disabled={disabled}><Icon name="plus" size={17} />添加项目</button>}
+        </div>
+        <div className="funds-tabs" role="group" aria-label="账户视图">
+          <button aria-pressed={accountView !== 'assets'} onClick={() => setAccountView('ledger')}><Icon name="book" size={17} />账户记账</button>
+          <button aria-pressed={accountView === 'assets'} onClick={() => setAccountView('assets')}><Icon name="wallet" size={17} />账户资产</button>
+        </div>
+        {accountView === 'ledger' && <>
+          <BalanceHistory journal={journal} />
+          <AccountLedger
+            key={ledgerLaunch?.count}
+            journal={journal} today={today} startDate={ledgerLaunch?.date} busy={disabled}
+            saveBalance={saveBalance} saveOpening={saveOpening} importBalances={importBalances}
+            saveSettlement={saveSettlement} saveAccounts={saveAccounts}
+            addAsset={newFund} editAsset={item => setPanel({ type: 'fund', item })}
+            openMonthly={() => setAccountView('monthly')}
+          />
+        </>}
+        {accountView === 'monthly' && <MonthlyLedger
+          summaries={journal.monthlySummaries ?? []} save={saveMonthly} remove={removeMonthly}
+          busy={disabled} sample={sampleMode} uninvested={newCashFund} back={() => setAccountView('ledger')}
+        />}
+        {accountView === 'assets' && <FundsPage
+          journal={journal} addAsset={newFund}
+          edit={item => setPanel({ type: 'fund', item })} update={item => setPanel({ type: 'valuation', item })}
+          saveAccounts={saveAccounts} busy={disabled}
+        />}
+      </>}
+      {page === 'planning' && <>
+        <div className="page-heading"><h1>未来规划</h1></div>
+        <IncomePlanning {...planning} openTimeline={openFinancialTimeline} />
+      </>}
       <footer className="page-footer"><span>HawTend · 好好生活，慢慢记录</span><button onClick={() => setPanel({ type: 'settings' })} className="text-button">本地原型 · 云同步未连接<Icon name="cloud" size={15} /></button></footer>
       </div></main>
     <nav className="mobile-nav" aria-label="手机主要导航">{navItems.map(n => <button key={n.id} className={page === n.id ? 'active' : ''} aria-current={page === n.id ? 'page' : undefined} onClick={() => navigate(n.id)}><Icon name={n.icon} size={21} /><span>{n.short}</span></button>)}<button className="mobile-add" disabled={disabled} aria-label="记下一刻" onClick={() => setPanel({ type: 'new' })}><Icon name="plus" size={23} /><span>记录</span></button></nav>
@@ -414,7 +453,7 @@ export default function App() {
       {panel.type === 'goal' && <GoalForm key={panel.item.id} item={panel.item} fresh={panel.fresh} save={saveGoal} sample={sampleMode} />}
       {panel.type === 'fund' && <FundEditor key={panel.item.id} item={panel.item} fresh={panel.fresh} journal={journal} save={saveFund} saveAccounts={saveAccounts} update={() => setPanel({ type: "valuation", item: panel.item })} busy={disabled} />}
       {panel.type === 'valuation' && <ValuationEditor key={panel.item.id} item={panel.item} save={saveFund} busy={disabled} />}
-      {panel.type === 'bookkeeping-reminder' && <div className="editor bookkeeping-prompt"><p>距上次记账已经 {bookkeepingDays(journal.lastBookkeepingDay, today)} 天。今天有空的话，可以先更新一个账户。</p><div><button className="quiet-button" onClick={closePanel}>稍后再记</button><button className="primary-button" onClick={() => { closePanel(); setLedgerLaunch(previous => ({ date: today, count: (previous?.count ?? 0) + 1 })); setFundsView('ledger'); navigate('funds') }}>去记账<Icon name="arrow" size={15} /></button></div></div>}
+      {panel.type === 'bookkeeping-reminder' && <div className="editor bookkeeping-prompt"><p>距上次记账已经 {bookkeepingDays(journal.lastBookkeepingDay, today)} 天。今天有空的话，可以先更新一个账户。</p><div><button className="quiet-button" onClick={closePanel}>稍后再记</button><button className="primary-button" onClick={() => { closePanel(); setLedgerLaunch(previous => ({ date: today, count: (previous?.count ?? 0) + 1 })); setAccountView('ledger'); navigate('funds') }}>去记账<Icon name="arrow" size={15} /></button></div></div>}
       {panel.type === 'drafts' && <MomentDraftList drafts={drafts} resume={resumeDraft} refresh={refreshDrafts} />}
       {panel.type === 'new' && <div className="new-options">{!sampleMode && drafts.length > 0 && <button onClick={() => setPanel({ type: 'drafts' })}><span className="option-icon"><Icon name="edit" size={26} /></span><span><strong>继续写草稿</strong><small>{drafts.length} 篇日子已自动保存，等你续写</small></span><Icon name="arrow" size={19} /></button>}<button onClick={newMoment}><span className="option-icon"><Icon name="book" size={26} /></span><span><strong>值得记住的日子</strong><small>记录事情，也记录当时的心情</small></span><Icon name="arrow" size={19} /></button><button onClick={newGoal}><span className="option-icon blue"><Icon name="flag" size={26} /></span><span><strong>对未来的一个期待</strong><small>放上时间轴，慢慢计划与实现</small></span><Icon name="arrow" size={19} /></button></div>}
       {panel.type === 'settings' && <div className="settings-panel"><p className="settings-intro">三种生活的底色，试试哪一种更像你。<br /><span>HawTend · 好好照料生活，也记录慢慢长大的自己。</span></p><div className="theme-options">{([{ id: 'paper', title: '暖纸手账', note: '纸色与鼠尾草绿，安静而有温度', colors: ['#f5f2eb', '#566958', '#c79265'] }, { id: 'forest', title: '森林笔记', note: '浅雾绿与深林色，清新、自然', colors: ['#edf1e9', '#41654f', '#94a881'] }, { id: 'dusk', title: '暮色日记', note: '浅燕麦与梅子色，柔软而内敛', colors: ['#f4eef0', '#805d70', '#c1949d'] }] as const).map(t => <button key={t.id} disabled={disabled} className={`theme-option ${journal.theme === t.id ? 'chosen' : ''}`} aria-pressed={journal.theme === t.id} onClick={() => change({ ...journal, theme: t.id }, '手账配色已保存到本机', false)}><span className="swatches">{t.colors.map(c => <i key={c} style={{ background: c }} />)}</span><strong>{t.title}</strong><span>{t.note}</span>{journal.theme === t.id && <Icon name="check" size={17} />}</button>)}</div><CategoryManager />{isDesktop() && !sampleMode && isBlank && <button className="quiet-button" disabled={disabled} onClick={() => { setPanel(null); setPage('home'); window.scrollTo(0, 0); window.dispatchEvent(new Event('hawtend-continue')) }}>接续以前的手账<Icon name="arrow" size={16} /></button>}<div className="settings-storage"><Icon name="book" size={25} /><div><h3>{sampleMode ? "正在体验样例手账" : "样例和你的手账，分别收藏"}</h3><p>新手账从空白开始。样例只用于体验，修改不会加入个人记录。</p><button className="text-button" disabled={disabled} onClick={switchSample}>{sampleMode ? "回到我的手账" : "查看样例手账"}<Icon name="arrow" size={16} /></button></div></div><div className="settings-storage"><Icon name="cloud" size={25} /><div><h3>这里是本地设计原型</h3><p>{isDesktop() ? "云同步尚未接入。编辑保存在这台电脑的独立手账空间，不会同步到另一台设备。可以导出文件留存。" : "云同步尚未接入。编辑仅存于当前浏览器，不会同步到另一台设备。浏览器清理可能删除本地内容，可以先导出留存。"}</p></div></div><button className="quiet-button export-button" onClick={exportData}><Icon name="download" size={18} />{sampleMode ? "导出样例手账 JSON" : "导出我的手账 JSON"}</button><p className="fine-print">账单导入、逐笔记账、数据恢复、账户登录与健康记录在后续分期实现。每月收支现已支持本机记录。请先用虚构内容体验流程。</p></div>}

@@ -27,7 +27,7 @@ export function monthlyReminderCalendar(today: string, now = new Date()): string
   return ['BEGIN:VCALENDAR', 'VERSION:2.0', 'PRODID:-//HawTend//Monthly Journal//ZH', 'CALSCALE:GREGORIAN',
     'BEGIN:VEVENT', 'UID:monthly-summary@hawtend.local', `DTSTAMP:${now.toISOString().replace(/[-:]/g, '').replace(/\.\d{3}/, '')}`,
     `DTSTART:${upcoming.replaceAll('-', '')}T100000`, 'DURATION:PT10M', 'RRULE:FREQ=MONTHLY;BYMONTHDAY=1',
-    'SUMMARY:补记上个月的收入与支出', 'DESCRIPTION:打开 HawTend → 资金安排 → 每月收支，填写上个月收入和支出总额。',
+    'SUMMARY:补记上个月的收入与支出', 'DESCRIPTION:打开 HawTend → 账户与记账 → 账户记账 → 补录整月总额，填写上个月收入和支出总额。',
     'BEGIN:VALARM', 'TRIGGER:PT0M', 'ACTION:DISPLAY', 'DESCRIPTION:补记上个月的收入与支出',
     'END:VALARM', 'END:VEVENT', 'END:VCALENDAR', ''].map(line => {
       // RFC 5545: fold by UTF-8 octets without splitting Chinese characters.

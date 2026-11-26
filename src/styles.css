@@ -544,9 +544,9 @@ input[type='range'] { accent-color: var(--accent); height: 24px; cursor: pointer
   .page-footer { align-items: flex-start; flex-direction: column; gap: 3px; padding: 25px 0 0; font-size: 9px; }
   .page-footer .text-button { min-height: 32px; }
   .mobile-nav { position: fixed; bottom: 0; left: 0; right: 0; display: flex; justify-content: space-around; background: color-mix(in srgb, var(--surface) 96%, transparent); backdrop-filter: blur(12px); border-top: 1px solid var(--line); padding: 7px 11px calc(8px + env(safe-area-inset-bottom)); z-index: 20; }
-  .mobile-nav button { color: var(--muted); min-height: 52px; min-width: 52px; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 6px; padding: 5px 8px; font-size: 11px; }
+  .mobile-nav button { color: var(--muted); min-height: 52px; min-width: 0; flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 6px; padding: 5px 2px; font-size: 11px; }
   .mobile-nav button.active { color: var(--accent); }
-  .mobile-nav .mobile-add { color: var(--surface); background: var(--accent); border-radius: 11px; width: 49px; margin-left: 5px; }
+  .mobile-nav .mobile-add { color: var(--surface); background: var(--accent); border-radius: 11px; flex: 0 0 44px; width: 44px; margin-left: 5px; }
   .page-heading { padding: 14px 0 25px; }
   .page-heading h1 { font-size: 27px; margin-top: 11px; letter-spacing: .8px; line-height: 1.65; }
   .page-heading p { font-size: 11px; }
